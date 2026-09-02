@@ -81,7 +81,7 @@
             msgDiv.className = "";
 
             try {
-                const response = await fetch('http://localhost:3000/api/products', {
+                const response = await fetch('/api/products', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(produto)
@@ -95,7 +95,8 @@
                     document.getElementById('formCadastro').reset(); // Limpa o formulário
                     document.getElementById('codigo').focus();
                 } else {
-                    msgDiv.textContent = "❌ Erro: " + (result.error.includes("UNIQUE") ? "Código de barras já existe!" : result.error);
+                    const erroMsg = result.error || 'Erro desconhecido';
+                    msgDiv.textContent = "❌ Erro: " + (erroMsg.includes("UNIQUE") ? "Código de barras já existe!" : erroMsg);
                     msgDiv.className = "erro";
                 }
             } catch (error) {
@@ -107,3 +108,4 @@
     </script>
 </body>
 </html>
+```[cite: 14]
