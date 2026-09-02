@@ -7,8 +7,6 @@ const path = require('path');
 const { MercadoPagoConfig, Payment } = require('mercadopago');
 
 // CONFIGURAÇÃO DO SUPABASE (POSTGRESQL)
-    const postgres = require('postgres');
-
 const connectionString = process.env.DATABASE_URL || 'postgresql://postgres:%40G1hh4ej22d@db.qxhpcaqdymiwsdloumma.supabase.co:5432/postgres';
 const sql = postgres(connectionString, { 
     ssl: 'require',
