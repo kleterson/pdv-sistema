@@ -9,7 +9,7 @@ const { MercadoPagoConfig, Payment } = require('mercadopago');
 // CONFIGURAÇÃO DO SUPABASE (POSTGRESQL)
 // Cole abaixo a sua string de conexão direta do Supabase (substitua [YOUR-PASSWORD] pela senha do seu banco)
 const connectionString = process.env.DATABASE_URL || 'postgresql://postgres:@G1hh4ej22d@db.qxhpcaqdymiwsdloumma.supabase.co:5432/postgres';
-const sql = postgres(connectionString);
+const sql = postgres(connectionString, { ssl: 'require' });
 
 // Testar conexão ao iniciar
 async function testarConexao() {
