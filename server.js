@@ -7,12 +7,18 @@ const path = require('path');
 const { MercadoPagoConfig, Payment } = require('mercadopago');
 
 // CONFIGURAÇÃO DO SUPABASE (POSTGRESQL)
-    import postgres from 'postgres'
+    const postgres = require('postgres');
 
 const connectionString = process.env.DATABASE_URL || 'postgresql://postgres:%40G1hh4ej22d@db.qxhpcaqdymiwsdloumma.supabase.co:5432/postgres';
-const sql = postgres(connectionString)
-
-export default sql
+const sql = postgres(connectionString, { 
+    ssl: 'require',
+    host: 'db.qxhpcaqdymiwsdloumma.supabase.co',
+    port: 5432,
+    database: 'postgres',
+    username: 'postgres',
+    password: '@G1hh4ej22d',
+    family: 4
+});
 
 // Testar conexão ao iniciar
 async function testarConexao() {
