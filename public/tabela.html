@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PDV Expresso - Tabela de Preços</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: Arial, sans-serif; }
+        body { background-color: #f0f2f5; display: flex; flex-direction: column; height: 100vh; }
+        .top-bar { background-color: #0056b3; color: white; padding: 12px 20px; display: flex; justify-content: space-between; align-items: center; font-size: 16px; font-weight: bold; }
+        .container { padding: 20px; flex: 1; display: flex; flex-direction: column; max-width: 900px; margin: 0 auto; width: 100%; }
+        .search-box { display: flex; gap: 10px; margin-bottom: 15px; }
+        .search-box input { flex: 1; padding: 10px; font-size: 15px; border: 1px solid #ccc; border-radius: 4px; }
+        .table-container { background: white; border: 1px solid #ccc; border-radius: 4px; flex: 1; overflow-y: auto; }
+        table { width: 100%; border-collapse: collapse; text-align: left; }
+        th, td { padding: 12px; border-bottom: 1px solid #ddd; font-size: 14px; }
+        th { background-color: #f8f9fa; color: #333; position: sticky; top: 0; }
+        .btn-back { background-color: #6c757d; color: white; border: none; padding: 8px 15px; border-radius: 4px; cursor: pointer; font-weight: bold; text-decoration: none; }
+        .btn-back:hover { background-color: #5a6268; }
+    </style>
+</head>
+<body>
+    <div class="top-bar">
+        <span>Tabela de Preços e Consulta</span>
+        <a href="/" class="btn-back">Voltar ao Caixa</a>
+    </div>
+
+    <div class="container">
+        <div class="search-box">
+            <input type="text" id="searchProduct" placeholder="Digite o nome ou código do produto para buscar..." oninput="filterProducts()">
+        </div>
+        <div class="table-container">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Código</th>
+                        <th>Descrição</th>
+                        <th>UN</th>
+                        <th>Preço (R$)</th>
+                    </tr>
+                </thead>
+                <tbody id="product-table-body">
+                    <!-- Os produtos serão carregados aqui via JavaScript -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        let allProducts = [];
+
+        async function loadProducts() {
+            try {
+                let response = await fetch('http://localhost:3000/api/products');
+                if (response.ok) {
+                    allProducts = await response.json();
+                    renderTable(allProducts);
+                }
+            } catch (error) {
+                console.error("Erro ao carregar produtos:", error);
+            }
+        }
+
+        function renderTable(products) {
+            const tbody = document.getElementById("product-table-body");
+            tbody.innerHTML = "";
+            if (products.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="4" style="text-align: center; color: #666;">Nenhum produto encontrado.</td></tr>`;
+                return;
+            }
+            products.forEach(p => {
+            tbody.innerHTML += `
+                <tr>
+                    <td>${p.code}</td>
+                    <td>
+                        ${p.name}
+                        <button onclick="navigator.clipboard.writeText('${p.code}'); alert('Código ${p.code} copiado!');" 
+                                style="padding: 2px 6px; font-size: 11px; margin-left: 8px; cursor: pointer; background: #e2e6ea; border: 1px solid #ccc; border-radius: 3px;">
+                            Copiar Código
+                        </button>
+                    </td>
+                    <td>${p.unit}</td>
+                    <td>R$ ${p.price.toFixed(2)}</td>
+                </tr>
+            `;
+        });
+        }
+
+        function filterProducts() {
+            let query = document.getElementById("searchProduct").value.toLowerCase();
+            let filtered = allProducts.filter(p => p.name.toLowerCase().includes(query) || p.code.toLowerCase().includes(query));
+            renderTable(filtered);
+        }
+
+        loadProducts();
+    </script>
+</body>
+</html>

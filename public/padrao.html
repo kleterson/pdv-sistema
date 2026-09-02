@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PDV Expresso - Parâmetros do Sistema</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: Arial, sans-serif; }
+        body { background-color: #f0f2f5; display: flex; flex-direction: column; height: 100vh; }
+        .top-bar { background-color: #0056b3; color: white; padding: 12px 20px; display: flex; justify-content: space-between; align-items: center; font-size: 16px; font-weight: bold; }
+        .container { padding: 20px; flex: 1; max-width: 600px; margin: 20px auto; width: 100%; background: white; border: 1px solid #ccc; border-radius: 6px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+        h2 { color: #0056b3; margin-bottom: 20px; border-bottom: 2px solid #0056b3; padding-bottom: 5px; font-size: 18px; }
+        .form-group { margin-bottom: 15px; }
+        .form-group label { display: block; font-weight: bold; margin-bottom: 5px; font-size: 14px; }
+        .form-group input, .form-group select { width: 100%; padding: 10px; font-size: 14px; border: 1px solid #ccc; border-radius: 4px; }
+        .btn-save { background-color: #28a745; color: white; border: none; padding: 10px 20px; font-size: 15px; font-weight: bold; border-radius: 4px; cursor: pointer; width: 100%; }
+        .btn-save:hover { background-color: #218838; }
+        .btn-back { background-color: #6c757d; color: white; border: none; padding: 8px 15px; border-radius: 4px; cursor: pointer; font-weight: bold; text-decoration: none; }
+        .btn-back:hover { background-color: #5a6268; }
+    </style>
+</head>
+<body>
+    <div class="top-bar">
+        <span>Parâmetros e Configurações</span>
+        <a href="/" class="btn-back">Voltar ao Caixa</a>
+    </div>
+
+    <div class="container">
+        <h2>Configurações do Terminal</h2>
+        <div class="form-group">
+            <label>Número do Terminal:</label>
+            <input type="text" id="termNumber" value="001">
+        </div>
+        <div class="form-group">
+            <label>Nome / Identificação da Loja:</label>
+            <input type="text" id="storeName" value="MB Assistência Técnica / Loja">
+        </div>
+        <div class="form-group">
+            <label>Ambiente de Pagamento Pix:</label>
+            <select id="envType">
+                <option value="TEST">Modo Teste (Sandbox)</option>
+                <option value="PROD">Modo Produção (Oficial)</option>
+            </select>
+        </div>
+        <button class="btn-save" onclick="saveSettings()">Salvar Configurações</button>
+    </div>
+
+    <script>
+        function saveSettings() {
+            let term = document.getElementById("termNumber").value;
+            let store = document.getElementById("storeName").value;
+            localStorage.setItem("pdv_terminal", term);
+            localStorage.setItem("pdv_store", store);
+            alert("✅ Configurações salvas com sucesso neste navegador!");
+        }
+
+        window.onload = function() {
+            if(localStorage.getItem("pdv_terminal")) {
+                document.getElementById("termNumber").value = localStorage.getItem("pdv_terminal");
+            }
+            if(localStorage.getItem("pdv_store")) {
+                document.getElementById("storeName").value = localStorage.getItem("pdv_store");
+            }
+        }
+    </script>
+</body>
+</html>

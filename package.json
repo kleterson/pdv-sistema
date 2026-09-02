@@ -1,0 +1,17 @@
+{
+  "name": "pdv-sistema",
+  "version": "1.0.0",
+  "description": "Sistema PDV Expresso",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.19.2",
+    "mercadopago": "^2.0.8",
+    "postgres": "^3.4.9",
+    "socket.io": "^4.7.5",
+    "sqlite3": "^5.1.7"
+  }
+}

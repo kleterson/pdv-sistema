@@ -1,0 +1,598 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PDV Expresso - Frente de Caixa</title>
+    <!-- Biblioteca do Socket.io para o Webhook em tempo real -->
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: Arial, sans-serif; }
+        body { background-color: #f0f2f5; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+        
+        .top-bar { background-color: #0056b3; color: white; padding: 8px 15px; display: flex; justify-content: space-between; align-items: center; font-size: 14px; font-weight: bold; }
+        
+        .sub-menu { background-color: #e9ecef; padding: 6px 15px; display: flex; gap: 8px; border-bottom: 1px solid #ccc; font-size: 13px; align-items: center; }
+        .menu-btn { background-color: #f8f9fa; border: 1px solid #ccc; color: #333; padding: 4px 10px; border-radius: 3px; text-decoration: none; font-weight: bold; font-size: 12px; transition: background 0.2s; }
+        .menu-btn:hover { background-color: #0056b3; color: white; border-color: #004080; }
+
+        .caixa-livre { background-color: #007bff; color: white; padding: 4px 15px; font-weight: bold; border-radius: 3px; }
+
+        .main-container { display: flex; flex: 1; padding: 10px; gap: 10px; }
+        .table-section { flex: 2; background: white; border: 1px solid #ccc; display: flex; flex-direction: column; border-radius: 4px; overflow-y: auto; }
+        table { width: 100%; border-collapse: collapse; text-align: left; }
+        th, td { padding: 10px; border-bottom: 1px solid #ddd; font-size: 14px; }
+        th { background-color: #f8f9fa; color: #333; position: sticky; top: 0; }
+        
+        .btn-delete-item { background-color: #dc3545; color: white; border: none; padding: 4px 8px; border-radius: 3px; cursor: pointer; font-weight: bold; font-size: 11px; }
+        .btn-delete-item:hover { background-color: #c82333; }
+
+        .brand-section { flex: 1; background: white; border: 1px solid #ccc; display: flex; flex-direction: column; align-items: center; justify-content: center; border-radius: 4px; color: #00a86b; text-align: center; }
+        .brand-section h1 { font-size: 48px; font-weight: bold; margin-top: 10px; color: #00a86b; }
+        .brand-section p { font-size: 18px; color: #666; letter-spacing: 2px; }
+
+        .total-bar { background-color: #fff; padding: 15px; border: 1px solid #ccc; margin: 0 10px; font-size: 24px; font-weight: bold; color: #333; display: flex; justify-content: space-between; align-items: center; border-radius: 4px; }
+        .total-value { color: #d9534f; }
+
+        .footer-shortcuts { display: flex; background-color: #e9ecef; padding: 10px; gap: 5px; border-top: 1px solid #ccc; justify-content: space-around; }
+        .shortcut-btn { background: #f8f9fa; border: 1px solid #ccc; border-radius: 4px; padding: 8px 12px; text-align: center; cursor: pointer; flex: 1; font-size: 12px; font-weight: bold; box-shadow: 0 1px 2px rgba(0,0,0,0.1); text-decoration: none; color: #333; display: block;}
+        .shortcut-btn span { display: block; color: #007bff; font-size: 11px; margin-bottom: 2px; }
+        .shortcut-btn:hover { background-color: #e2e6ea; }
+
+        .status-bar { background-color: #343a40; color: white; padding: 6px 15px; display: flex; justify-content: space-between; font-size: 12px; }
+        
+        .input-box { padding: 10px; background: #fff; border-bottom: 1px solid #ccc; display: flex; gap: 10px; align-items: center; }
+        .input-box input { flex: 1; padding: 8px; font-size: 16px; border: 1px solid #ccc; border-radius: 4px; }
+
+        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); justify-content: center; align-items: center; z-index: 1000; }
+        .modal-content { background: white; padding: 25px; border-radius: 8px; width: 480px; box-shadow: 0 4px 15px rgba(0,0,0,0.3); max-height: 90vh; overflow-y: auto; }
+        .modal-content h2 { margin-bottom: 15px; color: #0056b3; font-size: 20px; border-bottom: 2px solid #0056b3; padding-bottom: 5px; }
+        .form-group { margin-bottom: 10px; }
+        .form-group label { display: block; font-weight: bold; margin-bottom: 3px; font-size: 12px; }
+        .form-group select, .form-group input { width: 100%; padding: 7px; font-size: 13px; border: 1px solid #ccc; border-radius: 4px; }
+        
+        .modal-buttons { display: flex; gap: 10px; margin-top: 15px; }
+        .modal-buttons button { flex: 1; padding: 10px; font-size: 15px; font-weight: bold; border: none; border-radius: 4px; cursor: pointer; }
+        .btn-confirm { background-color: #28a745; color: white; }
+        .btn-cancel { background-color: #dc3545; color: white; }
+
+        #pixContainer { text-align: center; display: none; margin-top: 10px; }
+        #pixContainer img { width: 180px; height: 180px; margin: 10px auto; border: 1px solid #ddd; padding: 5px; }
+        #pixCopyPaste { font-size: 11px; background: #f8f9fa; padding: 8px; border: 1px dashed #ccc; word-break: break-all; max-height: 60px; overflow-y: auto; }
+
+        /* Estilo oculto exclusivo para o formato do Cupom Térmico na hora da impressão */
+        #receipt-print-area { display: none; }
+
+        @media print {
+            body * { visibility: hidden; }
+            #receipt-print-area, #receipt-print-area * { visibility: visible; }
+            #receipt-print-area { display: block; position: absolute; left: 0; top: 0; width: 58mm; font-family: monospace; font-size: 12px; color: #000; padding: 5px; }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="top-bar">
+        <span>USUÁRIO: LOJA</span>
+        <span class="caixa-livre">CAIXA LIVRE</span>
+        <span id="top-client-display">CLIENTE: CONSUMIDOR FINAL</span>
+    </div>
+
+    <div class="sub-menu">
+        <a href="/tabela.html" class="menu-btn">[TABELA]</a>
+        <a href="/padrao.html" class="menu-btn">[PADRÃO]</a>
+        <a href="/operacao.html" class="menu-btn">[OPERAÇÃO]</a>
+        <a href="/cadastro.html" class="menu-btn">[CADASTRO PRODUTOS]</a>
+        <a href="/caixa.html" class="menu-btn">[GESTOR DE CAIXA]</a>
+        <a href="/relatorio.html" class="menu-btn">[RELATÓRIO VENDAS]</a>
+        <a href="/fiados.html" class="menu-btn">[DEVEDOR]</a>
+        <a href="#" class="menu-btn" onclick="abrirConfigLogo()" style="background-color: #e2e6ea; color: #0056b3;">[CONFIG. LOGO]</a>
+    </div>
+
+    <div class="input-box">
+        <label for="barcode" style="font-weight: bold;">Produto (Código):</label>
+        <input type="text" id="barcode" placeholder="Digite o código e aperte Enter..." autofocus>
+    </div>
+
+    <div class="main-container">
+        <div class="table-section">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Item</th>
+                        <th>Código</th>
+                        <th>Descrição</th>
+                        <th>UN</th>
+                        <th>Quant</th>
+                        <th>Preço (R$)</th>
+                        <th>Total (R$)</th>
+                        <th style="text-align: center;">Ação</th>
+                    </tr>
+                </thead>
+                <tbody id="cart-items"></tbody>
+            </table>
+        </div>
+
+        <div class="brand-section" style="padding: 0; overflow: hidden;">
+            <iframe src="/logo.html" style="width: 100%; height: 100%; border: none;" scrolling="no"></iframe>
+        </div>
+    </div>
+
+    <div class="total-bar">
+        <span>TOTAL DA COMPRA:</span>
+        <span class="total-value" id="grand-total">R$ 0,00</span>
+    </div>
+
+    <div class="footer-shortcuts">
+        <a href="/fiados.html" class="shortcut-btn" style="text-decoration: none;"><span>F2</span> Devedor</a>
+        <div class="shortcut-btn"><span>F1</span> Ajuda</div>
+        <div class="shortcut-btn"><span>F3</span> V.Desconto</div>
+        <div class="shortcut-btn" onclick="requestPasswordAndClearCart()"><span>F4</span> Cancelar</div>
+        <div class="shortcut-btn"><span>F5</span> Pesquisar</div>
+        <div class="shortcut-btn" onclick="openPaymentModal()"><span>F7</span> Pagamento</div>
+        <div class="shortcut-btn" onclick="openPaymentModal()"><span>F9</span> Finalizar</div>
+        <div class="shortcut-btn" onclick="requestPasswordAndClearHistory()"><span>F12</span> Limpar Hist.</div>
+    </div>
+
+    <div class="status-bar">
+        <span>TERMINAL: 001</span>
+        <span>VERSÃO: 2026.1</span>
+        <span>EMISSÃO: NORMAL</span>
+        <span id="clock">00:00:00</span>
+    </div>
+
+    <!-- Modal de Pagamento -->
+    <div class="modal" id="paymentModal">
+        <div class="modal-content">
+            <h2>Finalizar Pagamento</h2>
+            <div class="form-group">
+                <label>Total a Pagar:</label>
+                <input type="text" id="modalTotal" disabled style="font-weight: bold; color: #d9534f;">
+            </div>
+            
+            <div class="form-group">
+                <label>Forma de Pagamento:</label>
+                <select id="paymentMethod" onchange="handlePaymentMethodChange()">
+                    <option value="DINHEIRO">Dinheiro</option>
+                    <option value="PIX">Pix</option>
+                    <option value="CARTAO_CREDITO">Cartão de Crédito</option>
+                    <option value="CARTAO_DEBITO">Cartão de Débito</option>
+                    <option value="Fiado (Anotar)">Fiado (Anotar)</option>
+                </select>
+            </div>
+
+            <!-- Campo que abre só quando for Fiado (mostrando o débito atualizado na frente) -->
+            <div class="form-group" id="boxFiadoCliente" style="display: none; margin-top: 10px;">
+                <label style="color: #d9534f; font-weight: bold;">Selecionar Cliente para o Fiado:</label>
+                <select id="selectClienteFiado" style="width: 100%; padding: 8px; border: 1px solid #d9534f; border-radius: 4px; font-size: 14px;">
+                    <!-- Carregado via JavaScript -->
+                </select>
+            </div>
+
+            <div id="divCashFields">
+                <div class="form-group">
+                    <label>Valor Recebido (R$):</label>
+                    <input type="number" id="cashReceived" placeholder="0.00" oninput="calculateChange()">
+                </div>
+                <div class="form-group">
+                    <label>Troco (R$):</label>
+                    <input type="text" id="changeAmount" disabled style="font-weight: bold; color: #28a745;" value="R$ 0,00">
+                </div>
+            </div>
+
+            <div id="pixContainer">
+                <p style="font-weight: bold; color: #0056b3; font-size: 13px;">Escaneie o QR Code abaixo com o app do banco:</p>
+                <img id="pixQrImg" src="" alt="QR Code Pix">
+                <p style="font-size: 11px; color: #666; margin-top: 5px;">Pix Copia e Cola:</p>
+                <div id="pixCopyPaste"></div>
+            </div>
+
+            <div class="modal-buttons">
+                <button class="btn-confirm" id="btnConfirmar" onclick="completeSale()">Confirmar Venda</button>
+                <button class="btn-cancel" onclick="closePaymentModal()">Cancelar (Esc)</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Área de Impressão Oculta para a Impressora Térmica -->
+    <div id="receipt-print-area">
+        <center>
+            <b>PDV EXPRESSO</b><br>
+            COMPROVANTE NÃO FISCAL<br>
+            --------------------------------<br>
+        </center>
+        <span>Data: <span id="print-date"></span></span><br>
+        <span>Cliente: <span id="print-client">CONSUMIDOR FINAL</span></span><br>
+        <span>Caixa: 001 | Terminal: Loja</span><br>
+        --------------------------------<br>
+        <table style="width: 100%; font-size: 11px;">
+            <thead>
+                <tr>
+                    <th style="text-align: left;">Qtd/Desc</th>
+                    <th style="text-align: right;">Total</th>
+                </tr>
+            </thead>
+            <tbody id="print-items-body"></tbody>
+        </table>
+        --------------------------------<br>
+        <b>TOTAL: <span id="print-total">R$ 0,00</span></b><br>
+        <span>Forma Pagto: <span id="print-method"></span></span><br>
+        <center>
+            --------------------------------<br>
+            Obrigado pela preferência!<br>
+            Volte sempre!
+        </center>
+    </div>
+
+    <script>
+        let cart = JSON.parse(localStorage.getItem('pdv_carrinho_atual')) || [];
+        let currentGrandTotal = 0;
+        let selectedClient = { id: null, name: "CONSUMIDOR FINAL" };
+        const SENHA_MESTRE = "2332";
+
+        const inputField = document.getElementById("barcode");
+        const cartTableBody = document.getElementById("cart-items");
+        const grandTotalElement = document.getElementById("grand-total");
+
+        const socket = io();
+
+  socket.on('pagamento_confirmado', (data) => {
+    // Procura qualquer modal de pagamento visível na tela
+    let modals = document.querySelectorAll('.modal, [id*="modal"], [id*="Modal"]');
+    
+    alert(`Pagamento de R$ ${Number(data.valor || 0).toFixed(2)} confirmado com sucesso!`);
+    
+    // Fecha todos os modais abertos
+    modals.forEach(m => {
+        m.style.display = 'none';
+    });
+
+    if (typeof completeSaleViaWebhook === 'function') {
+        completeSaleViaWebhook();
+    } else {
+        location.reload();
+    }
+});  
+
+        document.addEventListener("keydown", function(e) {
+            if (e.key === "F2") {
+                e.preventDefault();
+                window.location.href = 'fiados.html';
+            } else if (e.key === "F7" || e.key === "F9") {
+                e.preventDefault();
+                openPaymentModal();
+            } else if (e.key === "F4") {
+                e.preventDefault();
+                requestPasswordAndClearCart();
+            } else if (e.key === "F12") {
+                e.preventDefault();
+                requestPasswordAndClearHistory();
+            } else if (e.key === "Escape") {
+                closePaymentModal();
+            }
+        });
+
+        async function handlePaymentMethodChange() {
+            let method = document.getElementById("paymentMethod").value;
+            let cashFields = document.getElementById("divCashFields");
+            let pixContainer = document.getElementById("pixContainer");
+            let boxFiado = document.getElementById("boxFiadoCliente");
+
+            cashFields.style.display = "none";
+            pixContainer.style.display = "none";
+            boxFiado.style.display = "none";
+
+            if (method === "PIX") {
+                pixContainer.style.display = "block";
+                document.getElementById("pixCopyPaste").innerText = "Gerando QR Code Pix no Mercado Pago...";
+                
+                try {
+                    let response = await fetch('http://localhost:3000/api/pix/create', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ transaction_amount: currentGrandTotal })
+                    });
+                    let data = await response.json();
+
+                    if (response.ok) {
+                        document.getElementById("pixQrImg").src = `data:image/jpeg;base64,${data.qr_code_base64}`;
+                        document.getElementById("pixCopyPaste").innerText = data.qr_code;
+                    } else {
+                        alert("Erro ao gerar Pix: " + data.error);
+                    }
+                } catch (err) {
+                    console.error(err);
+                    alert("Erro de comunicação ao gerar Pix.");
+                }
+            } else if (method === "DINHEIRO") {
+                cashFields.style.display = "block";
+            } else if (method === "Fiado (Anotar)") {
+                boxFiado.style.display = "block";
+                await carregarClientesParaFiado();
+            }
+        }
+
+        async function carregarClientesParaFiado() {
+            try {
+                let res = await fetch('http://localhost:3000/api/clients');
+                if (res.ok) {
+                    let clients = await res.json();
+                    let select = document.getElementById('selectClienteFiado');
+                    select.innerHTML = '';
+                    
+                    if (clients.length === 0) {
+                        select.innerHTML = `<option value="">Nenhum cliente cadastrado!</option>`;
+                        return;
+                    }
+
+                    clients.forEach(c => {
+                        // Calcula o débito atual + a compra atual para mostrar quanto ele ficará devendo
+                        let debitoAtual = c.debt || 0;
+                        let novoDebitoTotal = debitoAtual + currentGrandTotal;
+                        
+                        select.innerHTML += `<option value="${c.id}">${c.name} — Débito Atual: R$ ${debitoAtual.toFixed(2)} | Ficando com: R$ ${novoDebitoTotal.toFixed(2)}</option>`;
+                    });
+                }
+            } catch (err) {
+                console.error("Erro ao carregar clientes para fiado:", err);
+            }
+        }
+
+        inputField.addEventListener("keypress", async function(e) {
+            if (e.key === "Enter") {
+                let code = inputField.value.trim();
+                if (!code) return;
+
+                try {
+                    let response = await fetch(`http://localhost:3000/api/products/${code}`);
+                    if (response.ok) {
+                        let product = await response.json();
+                        addProductToCart(product);
+                        inputField.value = "";
+                    } else {
+                        alert("Produto não encontrado no banco de dados!");
+                    }
+                } catch (error) {
+                    console.error("Erro:", error);
+                }
+            }
+        });
+
+        function addProductToCart(product) {
+            let existing = cart.find(item => item.code === product.code);
+            if (existing) {
+                existing.quantity += 1;
+                existing.total = existing.quantity * existing.price;
+            } else {
+                cart.push({
+                    code: product.code,
+                    name: product.name,
+                    unit: product.unit,
+                    price: product.price,
+                    quantity: 1,
+                    total: product.price
+                });
+            }
+            updateTable();
+        }
+
+        function requestPasswordAndRemoveItem(index) {
+            let senha = prompt("Digite a senha de autorização para remover o item:");
+            if (senha === null) return;
+            
+            if (senha === SENHA_MESTRE) {
+                cart.splice(index, 1);
+                updateTable();
+                alert("✅ Item removido com sucesso!");
+            } else {
+                alert("❌ Senha incorreta! Ação negada.");
+            }
+            inputField.focus();
+        }
+
+        function requestPasswordAndClearCart() {
+            if (cart.length === 0) {
+                alert("O carrinho já está vazio.");
+                return;
+            }
+            let senha = prompt("Digite a senha de autorização para cancelar a venda atual:");
+            if (senha === null) return;
+
+            if (senha === SENHA_MESTRE) {
+                cart = [];
+                updateTable();
+                alert("✅ Venda cancelada com sucesso!");
+            } else {
+                alert("❌ Senha incorreta! Ação negada.");
+            }
+            inputField.focus();
+        }
+
+        function requestPasswordAndClearHistory() {
+            let senha = prompt("Digite a senha de autorização para limpar o histórico:");
+            if (senha === null) return;
+
+            if (senha === SENHA_MESTRE) {
+                localStorage.removeItem('pdv_carrinho_atual');
+                cart = [];
+                updateTable();
+                alert("✅ Histórico limpo com sucesso!");
+            } else {
+                alert("❌ Senha incorreta! Ação negada.");
+            }
+            inputField.focus();
+        }
+
+        function updateTable() {
+            cartTableBody.innerHTML = "";
+            currentGrandTotal = 0;
+
+            cart.forEach((item, index) => {
+                currentGrandTotal += item.total;
+                let row = `<tr>
+                    <td>${String(index + 1).padStart(2, '0')}</td>
+                    <td>${item.code}</td>
+                    <td>${item.name}</td>
+                    <td>${item.unit}</td>
+                    <td>${item.quantity}</td>
+                    <td>R$ ${item.price.toFixed(2)}</td>
+                    <td>R$ ${item.total.toFixed(2)}</td>
+                    <td style="text-align: center;">
+                        <button class="btn-delete-item" onclick="requestPasswordAndRemoveItem(${index})">X</button>
+                    </td>
+                </tr>`;
+                cartTableBody.innerHTML += row;
+            });
+
+            grandTotalElement.innerText = `R$ ${currentGrandTotal.toFixed(2)}`;
+            localStorage.setItem('pdv_carrinho_atual', JSON.stringify(cart));
+        }
+
+        async function openPaymentModal() {
+            if (cart.length === 0) {
+                alert("Adicione produtos ao carrinho antes de prosseguir!");
+                return;
+            }
+            document.getElementById("modalTotal").value = `R$ ${currentGrandTotal.toFixed(2)}`;
+            document.getElementById("paymentMethod").value = "DINHEIRO";
+            
+            await handlePaymentMethodChange();
+            
+            document.getElementById("cashReceived").value = "";
+            document.getElementById("changeAmount").value = "R$ 0,00";
+            
+            document.getElementById("paymentModal").style.display = "flex";
+            document.getElementById("cashReceived").focus();
+        }
+
+        function closePaymentModal() {
+            document.getElementById("paymentModal").style.display = "none";
+            inputField.focus();
+        }
+
+        function calculateChange() {
+            let received = parseFloat(document.getElementById("cashReceived").value) || 0;
+            let change = received - currentGrandTotal;
+            let changeElement = document.getElementById("changeAmount");
+            if (change >= 0) {
+                changeElement.value = `R$ ${change.toFixed(2)}`;
+                changeElement.style.color = "#28a745";
+            } else {
+                changeElement.value = "Valor insuficiente";
+                changeElement.style.color = "#dc3545";
+            }
+        }
+
+        function printReceipt(methodName) {
+            document.getElementById("print-date").innerText = new Date().toLocaleString();
+            document.getElementById("print-client").innerText = selectedClient.name;
+            document.getElementById("print-total").innerText = `R$ ${currentGrandTotal.toFixed(2)}`;
+            document.getElementById("print-method").innerText = methodName;
+
+            let printItemsBody = document.getElementById("print-items-body");
+            printItemsBody.innerHTML = "";
+
+            cart.forEach(item => {
+                printItemsBody.innerHTML += `
+                    <tr>
+                        <td>${item.quantity}x ${item.name}</td>
+                        <td style="text-align: right;">R$ ${item.total.toFixed(2)}</td>
+                    </tr>
+                `;
+            });
+
+            window.print();
+        }
+
+        async function completeSale() {
+            let method = document.getElementById("paymentMethod").value;
+            let clientIdToUse = selectedClient.id;
+
+            if (method === "DINHEIRO") {
+                let received = parseFloat(document.getElementById("cashReceived").value) || 0;
+                if (received < currentGrandTotal) {
+                    alert("O valor recebido é menor que o total da compra卡的!");
+                    return;
+                }
+            }
+
+            if (method === "Fiado (Anotar)") {
+                clientIdToUse = document.getElementById("selectClienteFiado").value;
+                if (!clientIdToUse) {
+                    alert("❌ Selecione um cliente válido para registrar o fiado!");
+                    return;
+                }
+            }
+
+            try {
+                let response = await fetch('http://localhost:3000/api/sales', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        items: cart,
+                        total: currentGrandTotal,
+                        paymentMethod: method,
+                        clientId: clientIdToUse,
+                        clientName: selectedClient.name
+                    })
+                });
+
+                if (response.ok) {
+                    alert("Venda concluída e salva com sucesso!");
+                    printReceipt(method);
+                    cart = [];
+                    selectedClient = { id: null, name: "CONSUMIDOR FINAL" };
+                    document.getElementById("top-client-display").innerText = "CLIENTE: CONSUMIDOR FINAL";
+                    updateTable();
+                    closePaymentModal();
+                } else {
+                    alert("Erro ao registrar a venda.");
+                }
+            } catch (error) {
+                console.error("Erro:", error);
+            }
+        }
+
+        async function completeSaleViaWebhook() {
+            try {
+                let response = await fetch('http://localhost:3000/api/sales', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        items: cart,
+                        total: currentGrandTotal,
+                        paymentMethod: 'PIX',
+                        clientId: selectedClient.id,
+                        clientName: selectedClient.name
+                    })
+                });
+
+                if (response.ok) {
+                    printReceipt('PIX (Automático)');
+                    cart = [];
+                    selectedClient = { id: null, name: "CONSUMIDOR FINAL" };
+                    document.getElementById("top-client-display").innerText = "CLIENTE: CONSUMIDOR FINAL";
+                    updateTable();
+                    closePaymentModal();
+                } else {
+                    alert("Erro ao registrar a venda automática no banco.");
+                }
+            } catch (error) {
+                console.error("Erro:", error);
+            }
+        }
+
+        setInterval(() => {
+            const now = new Date();
+            document.getElementById("clock").innerText = now.toLocaleTimeString();
+        }, 1000);
+
+        function abrirConfigLogo() {
+            let iframe = document.querySelector('.brand-section iframe');
+            if (iframe && iframe.contentWindow.toggleConfig) {
+                iframe.contentWindow.toggleConfig();
+            }
+        }
+    </script>
+</body>
+</html>

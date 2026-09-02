@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cadastro de Produtos - PDV</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: Arial, sans-serif; }
+        body { background-color: #f0f2f5; display: flex; justify-content: center; align-items: center; height: 100vh; }
+        
+        .container { background: white; padding: 30px; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); width: 100%; max-width: 500px; }
+        h2 { color: #0056b3; margin-bottom: 20px; text-align: center; border-bottom: 2px solid #f0f2f5; padding-bottom: 10px; }
+        
+        .form-group { margin-bottom: 15px; }
+        label { display: block; font-weight: bold; margin-bottom: 5px; color: #333; }
+        input, select { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 4px; font-size: 16px; }
+        input:focus, select:focus { border-color: #007bff; outline: none; }
+        
+        .btn-submit { width: 100%; background: #28a745; color: white; border: none; padding: 12px; font-size: 16px; font-weight: bold; border-radius: 4px; cursor: pointer; margin-top: 10px; }
+        .btn-submit:hover { background: #218838; }
+        
+        .btn-back { display: block; text-align: center; margin-top: 15px; color: #007bff; text-decoration: none; font-weight: bold; }
+        .btn-back:hover { text-decoration: underline; }
+
+        #mensagem { text-align: center; margin-top: 15px; font-weight: bold; }
+        .sucesso { color: #28a745; }
+        .erro { color: #dc3545; }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h2>Cadastrar Novo Produto</h2>
+        <form id="formCadastro">
+            <div class="form-group">
+                <label>Código de Barras (ou SKU):</label>
+                <input type="text" id="codigo" required placeholder="Ex: 7891005">
+            </div>
+            
+            <div class="form-group">
+                <label>Descrição do Produto:</label>
+                <input type="text" id="nome" required placeholder="Ex: Biscoito Recheado">
+            </div>
+            
+            <div class="form-group">
+                <label>Unidade de Medida:</label>
+                <select id="unidade">
+                    <option value="UN">Unidade (UN)</option>
+                    <option value="KG">Quilograma (KG)</option>
+                    <option value="CX">Caixa (CX)</option>
+                    <option value="LT">Litro (LT)</option>
+                </select>
+            </div>
+            
+            <div class="form-group">
+                <label>Preço de Venda (R$):</label>
+                <input type="number" step="0.01" id="preco" required placeholder="Ex: 4.50">
+            </div>
+            
+            <button type="submit" class="btn-submit">Salvar Produto</button>
+        </form>
+
+        <div id="mensagem"></div>
+
+        <a href="/" class="btn-back">⬅ Voltar para o PDV (Frente de Caixa)</a>
+    </div>
+
+    <script>
+        document.getElementById('formCadastro').addEventListener('submit', async function(e) {
+            e.preventDefault(); // Evita recarregar a página
+            
+            const produto = {
+                code: document.getElementById('codigo').value.trim(),
+                name: document.getElementById('nome').value.trim(),
+                unit: document.getElementById('unidade').value,
+                price: parseFloat(document.getElementById('preco').value)
+            };
+
+            const msgDiv = document.getElementById('mensagem');
+            msgDiv.textContent = "Salvando...";
+            msgDiv.className = "";
+
+            try {
+                const response = await fetch('http://localhost:3000/api/products', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(produto)
+                });
+
+                const result = await response.json();
+
+                if (response.ok) {
+                    msgDiv.textContent = "✅ Produto cadastrado com sucesso!";
+                    msgDiv.className = "sucesso";
+                    document.getElementById('formCadastro').reset(); // Limpa o formulário
+                    document.getElementById('codigo').focus();
+                } else {
+                    msgDiv.textContent = "❌ Erro: " + (result.error.includes("UNIQUE") ? "Código de barras já existe!" : result.error);
+                    msgDiv.className = "erro";
+                }
+            } catch (error) {
+                console.error("Erro:", error);
+                msgDiv.textContent = "❌ Erro ao conectar com o servidor.";
+                msgDiv.className = "erro";
+            }
+        });
+    </script>
+</body>
+</html>

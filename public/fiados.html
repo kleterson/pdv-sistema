@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PDV Expresso - Controle de Clientes e Fiados</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: Arial, sans-serif; }
+        body { background-color: #f0f2f5; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+        
+        .top-bar { background-color: #0056b3; color: white; padding: 10px 20px; display: flex; justify-content: space-between; align-items: center; font-size: 16px; font-weight: bold; }
+        .back-btn { background-color: #f8f9fa; color: #333; padding: 6px 12px; border: 1px solid #ccc; border-radius: 4px; text-decoration: none; font-size: 13px; font-weight: bold; }
+        .back-btn:hover { background-color: #e2e6ea; }
+
+        .container { padding: 20px; flex: 1; display: flex; gap: 20px; overflow: hidden; max-width: 1350px; margin: 0 auto; width: 100%; }
+        
+        .card-form { background: white; border: 1px solid #ccc; border-radius: 6px; padding: 20px; width: 350px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+        .card-form h3 { margin-bottom: 15px; color: #0056b3; font-size: 18px; border-bottom: 2px solid #0056b3; padding-bottom: 5px; }
+        
+        .form-group { margin-bottom: 12px; }
+        .form-group label { display: block; font-weight: bold; margin-bottom: 4px; font-size: 13px; }
+        .form-group input { width: 100%; padding: 8px; font-size: 14px; border: 1px solid #ccc; border-radius: 4px; }
+        .btn-submit { background-color: #28a745; color: white; border: none; width: 100%; padding: 10px; font-size: 15px; font-weight: bold; border-radius: 4px; cursor: pointer; margin-top: 5px; }
+        .btn-submit:hover { background-color: #218838; }
+
+        .card-list { background: white; border: 1px solid #ccc; border-radius: 6px; padding: 20px; flex: 1; display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+        .card-list h3 { margin-bottom: 5px; color: #333; font-size: 18px; }
+
+        .table-responsive { flex: 1; overflow-y: auto; border: 1px solid #ddd; border-radius: 4px; margin-top: 10px; }
+        table { width: 100%; border-collapse: collapse; text-align: left; background: white; }
+        th, td { padding: 10px 12px; border-bottom: 1px solid #ddd; font-size: 13px; vertical-align: top; }
+        th { background-color: #f8f9fa; color: #333; position: sticky; top: 0; z-index: 10; }
+
+        .debt-no { color: #28a745; font-weight: bold; }
+        .product-item { font-size: 12px; color: #333; margin-bottom: 2px; }
+        .debt-total { font-size: 13px; font-weight: bold; color: #d9534f; margin-top: 4px; display: block; border-top: 1px dashed #ddd; padding-top: 3px; }
+        
+        .btn-delete { background-color: #dc3545; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 11px; }
+        .btn-delete:hover { background-color: #c82333; }
+    </style>
+</head>
+<body>
+
+    <div class="top-bar">
+        <span>CONTROLE DE CLIENTES E FIADOS</span>
+        <a href="/" class="back-btn">← Voltar ao PDV (Caixa)</a>
+    </div>
+
+    <div class="container">
+        <!-- Formulário de Cadastro Rápido -->
+        <div class="card-form">
+            <h3>Novo Cliente</h3>
+            <form id="clientForm">
+                <div class="form-group">
+                    <label>Nome:</label>
+                    <input type="text" id="name" placeholder="Nome completo" required>
+                </div>
+                <div class="form-group">
+                    <label>Endereço:</label>
+                    <input type="text" id="address" placeholder="Ex: Rua Marechal...">
+                </div>
+                <div class="form-group">
+                    <label>Número:</label>
+                    <input type="text" id="number" placeholder="Ex: 256">
+                </div>
+                <div class="form-group">
+                    <label>WhatsApp / Telefone:</label>
+                    <input type="text" id="whatsapp" placeholder="Ex: 11999999999">
+                </div>
+                <button type="submit" class="btn-submit">Salvar Cliente</button>
+            </form>
+        </div>
+
+        <!-- Lista de Clientes e Status de Fiados -->
+        <div class="card-list">
+            <h3>Clientes Cadastrados & Débitos</h3>
+            <p style="color: #666; font-size: 13px;">Todos os dados dos clientes salvos no sistema.</p>
+
+            <div class="table-responsive">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Nome</th>
+                            <th>Endereço</th>
+                            <th>Nº</th>
+                            <th>WhatsApp</th>
+                            <th>Produtos Fiados / Débito</th>
+                            <th style="text-align: center;">Ações</th>
+                        </tr>
+                    </thead>
+                    <tbody id="clients-table-body">
+                        <!-- Preenchido via JavaScript -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        async function loadClients() {
+            try {
+                let response = await fetch('http://localhost:3000/api/clients');
+                if (response.ok) {
+                    let clients = await response.json();
+                    let tbody = document.getElementById('clients-table-body');
+                    tbody.innerHTML = '';
+
+                    if (clients.length === 0) {
+                        tbody.innerHTML = `<tr><td colspan="7" style="text-align: center; color: #777; padding: 20px;">Nenhum cliente cadastrado.</td></tr>`;
+                        return;
+                    }
+
+                    clients.forEach(c => {
+                        let endereco = c.address ? c.address : 'Não informado';
+                        let numero = c.number ? c.number : 'S/N';
+                        let whats = c.whatsapp || c.phone || 'Não informado';
+                        let debitoValor = c.debt || 0; 
+                        
+                        let produtosHtml = '';
+                        if (c.items && c.items.length > 0) {
+                            c.items.forEach(item => {
+                                produtosHtml += `<div class="product-item">▪ ${item.product_name} (${item.quantity}x) - <b>R$ ${item.total.toFixed(2)}</b></div>`;
+                            });
+                            produtosHtml += `<span class="debt-total">Total: R$ ${debitoValor.toFixed(2)}</span>`;
+                        } else if (debitoValor > 0) {
+                            produtosHtml = `<span class="debt-total">Total: R$ ${debitoValor.toFixed(2)}</span>`;
+                        } else {
+                            produtosHtml = `<span class="debt-no">Nenhum</span>`;
+                        }
+
+                        tbody.innerHTML += `
+                            <tr>
+                                <td>${String(c.id).padStart(3, '0')}</td>
+                                <td><b>${c.name}</b></td>
+                                <td>${endereco}</td>
+                                <td>${numero}</td>
+                                <td>${whats}</td>
+                                <td>${produtosHtml}</td>
+                                <td style="text-align: center;">
+                                    <button class="btn-delete" onclick="deleteClient(${c.id}, '${c.name}')">Excluir</button>
+                                </td>
+                            </tr>
+                        `;
+                    });
+                }
+            } catch (err) {
+                console.error("Erro ao carregar clientes:", err);
+            }
+        }
+
+        async function deleteClient(id, name) {
+            if (confirm(`Deseja realmente excluir o cadastro de "${name}"?`)) {
+                try {
+                    let res = await fetch(`http://localhost:3000/api/clients/${id}`, {
+                        method: 'DELETE'
+                    });
+                    if (res.ok) {
+                        alert('✅ Cliente excluído com sucesso!');
+                        loadClients();
+                    } else {
+                        alert('❌ Erro ao excluir cliente.');
+                    }
+                } catch (err) {
+                    console.error(err);
+                    alert('Erro de conexão com o servidor.');
+                }
+            }
+        }
+
+        document.getElementById('clientForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            let name = document.getElementById('name').value.trim();
+            let address = document.getElementById('address').value.trim();
+            let number = document.getElementById('number').value.trim();
+            let whatsapp = document.getElementById('whatsapp').value.trim();
+
+            try {
+                let res = await fetch('http://localhost:3000/api/clients', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name, address, number, whatsapp, phone: whatsapp })
+                });
+
+                if (res.ok) {
+                    alert('✅ Cliente cadastrado com sucesso!');
+                    document.getElementById('clientForm').reset();
+                    loadClients();
+                } else {
+                    alert('❌ Erro ao cadastrar cliente.');
+                }
+            } catch (err) {
+                console.error(err);
+                alert('Erro de conexão com o servidor.');
+            }
+        });
+
+        loadClients();
+    </script>
+</body>
+</html>
