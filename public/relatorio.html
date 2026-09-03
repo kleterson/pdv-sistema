@@ -96,7 +96,7 @@
     <script>
         async function carregarRelatorio() {
             try {
-                const response = await fetch('http://localhost:3000/api/sales');
+                const response = await fetch('/api/sales');
                 const sales = await response.json();
 
                 const tbody = document.getElementById('salesTableBody');

@@ -284,7 +284,7 @@
     <script>
         async function carregarResumoCaixa() {
             try {
-                const response = await fetch('http://localhost:3000/api/caixa/resumo');
+                const response = await fetch('/api/caixa/resumo');
                 const data = await response.json();
 
                 // Atualizar os Cards Principais
@@ -343,7 +343,7 @@
             if (tipo.includes('Abertura')) tipoEnvio = 'ABERTURA';
 
             try {
-                const response = await fetch('http://localhost:3000/api/caixa/movimentar', {
+                const response = await fetch('/api/caixa/movimentar', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ tipo: tipoEnvio, valor: parseFloat(valor), motivo })
@@ -372,7 +372,7 @@
     if (!senha) return;
 
     try {
-        const response = await fetch('http://localhost:3000/api/caixa/zerar', {
+        const response = await fetch('/api/caixa/zerar', {
             method: 'DELETE',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ senha })

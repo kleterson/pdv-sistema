@@ -236,23 +236,21 @@
 
         const socket = io();
 
-  socket.on('pagamento_confirmado', (data) => {
-    // Procura qualquer modal de pagamento visível na tela
-    let modals = document.querySelectorAll('.modal, [id*="modal"], [id*="Modal"]');
-    
-    alert(`Pagamento de R$ ${Number(data.valor || 0).toFixed(2)} confirmado com sucesso!`);
-    
-    // Fecha todos os modais abertos
-    modals.forEach(m => {
-        m.style.display = 'none';
-    });
+        socket.on('pagamento_confirmado', (data) => {
+            let modals = document.querySelectorAll('.modal, [id*="modal"], [id*="Modal"]');
+            
+            alert(`Pagamento de R$ ${Number(data.valor || 0).toFixed(2)} confirmado com sucesso!`);
+            
+            modals.forEach(m => {
+                m.style.display = 'none';
+            });
 
-    if (typeof completeSaleViaWebhook === 'function') {
-        completeSaleViaWebhook();
-    } else {
-        location.reload();
-    }
-});  
+            if (typeof completeSaleViaWebhook === 'function') {
+                completeSaleViaWebhook();
+            } else {
+                location.reload();
+            }
+        });  
 
         document.addEventListener("keydown", function(e) {
             if (e.key === "F2") {
@@ -287,7 +285,7 @@
                 document.getElementById("pixCopyPaste").innerText = "Gerando QR Code Pix no Mercado Pago...";
                 
                 try {
-                    let response = await fetch('http://localhost:3000/api/pix/create', {
+                    let response = await fetch('/api/pix/create', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ transaction_amount: currentGrandTotal })
@@ -314,7 +312,7 @@
 
         async function carregarClientesParaFiado() {
             try {
-                let res = await fetch('http://localhost:3000/api/clients');
+                let res = await fetch('/api/clients');
                 if (res.ok) {
                     let clients = await res.json();
                     let select = document.getElementById('selectClienteFiado');
@@ -326,7 +324,6 @@
                     }
 
                     clients.forEach(c => {
-                        // Calcula o débito atual + a compra atual para mostrar quanto ele ficará devendo
                         let debitoAtual = c.debt || 0;
                         let novoDebitoTotal = debitoAtual + currentGrandTotal;
                         
@@ -344,7 +341,7 @@
                 if (!code) return;
 
                 try {
-                    let response = await fetch(`http://localhost:3000/api/products/${code}`);
+                    let response = await fetch(`/api/products/${code}`);
                     if (response.ok) {
                         let product = await response.json();
                         addProductToCart(product);
@@ -511,7 +508,7 @@
             if (method === "DINHEIRO") {
                 let received = parseFloat(document.getElementById("cashReceived").value) || 0;
                 if (received < currentGrandTotal) {
-                    alert("O valor recebido é menor que o total da compra卡的!");
+                    alert("O valor recebido é menor que o total da compra!");
                     return;
                 }
             }
@@ -525,7 +522,7 @@
             }
 
             try {
-                let response = await fetch('http://localhost:3000/api/sales', {
+                let response = await fetch('/api/sales', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
@@ -555,7 +552,7 @@
 
         async function completeSaleViaWebhook() {
             try {
-                let response = await fetch('http://localhost:3000/api/sales', {
+                let response = await fetch('/api/sales', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({

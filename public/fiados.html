@@ -176,7 +176,7 @@
             let whatsapp = document.getElementById('whatsapp').value.trim();
 
             try {
-                let res = await fetch('http://localhost:3000/api/clients', {
+                let res = await fetch('/api/clients', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ name, address, number, whatsapp, phone: whatsapp })
