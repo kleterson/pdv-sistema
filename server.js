@@ -7,7 +7,7 @@ const path = require('path');
 const { MercadoPagoConfig, Payment } = require('mercadopago');
 
 // CONFIGURAÇÃO DO SUPABASE (POSTGRESQL) - Forçando IPv4 para evitar erro no Render
-const connectionString = process.env.DATABASE_URL || 'postgresql://postgres:%40G1hh4ej22d@db.qxhpcaqdymiwsdloumma.supabase.co:6543/postgres';
+const connectionString = process.env.DATABASE_URL || 'postgresql://postgres.qxhpcaqdymiwsdloumma:%40G1hh4ej22d@aws-0-us-east-2.pooler.supabase.com:6543/postgres';
 const sql = postgres(connectionString, { 
     ssl: 'require',
     family: 4
