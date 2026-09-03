@@ -282,15 +282,22 @@ app.get('/api/products/:code', async (req, res) => {
     }
 });
 
-// Rota de Vendas (Dinheiro = concluido/pago, Pix/Cartão não pago = pendente)
+// Rota de Vendas corrigida
 app.post('/api/sales', async (req, res) => {
     const { items, total, paymentMethod, clientId, status } = req.body;
 
-    // Se for Dinheiro, o status padrão é concluido/pago. Se for Pix/Cartão pendente, vem 'pendente'
-    const statusVenda = status || (paymentMethod && paymentMethod.toUpperCase().includes('DINHEIRO') ? 'concluido' : 'pendente');
+    const metodoUpper = (paymentMethod || '').toUpperCase();
+    let statusVenda = status;
+    if (!statusVenda) {
+        if (metodoUpper.includes('DINHEIRO') || metodoUpper.includes('FIADO') || metodoUpper.includes('ANOTAR')) {
+            statusVenda = 'concluido';
+        } else {
+            statusVenda = 'pendente';
+        }
+    }
 
     try {
-        if (statusVenda === 'concluido' && paymentMethod && (paymentMethod.includes('Fiado') || paymentMethod === "Fiado (Anotar)") && clientId) {
+        if (statusVenda === 'concluido' && metodoUpper.includes('FIADO') && clientId) {
             await sql`UPDATE clients SET debt = COALESCE(debt, 0) + ${total} WHERE id = ${clientId}`;
         }
 
@@ -308,8 +315,10 @@ app.post('/api/sales', async (req, res) => {
                     VALUES (${saleId}, ${item.code}, ${item.name}, ${item.quantity}, ${item.price}, ${item.total})
                 `;
 
-                // Dar baixa no estoque e registrar a saída (se concluído já baixa, se pendente também pode baixar ou aguardar. Vamos manter a baixa e ajustar o status na movimentação)
+                // Baixa o estoque imediatamente
                 await sql`UPDATE products SET stock = GREATEST(0, COALESCE(stock, 0) - ${item.quantity}) WHERE code = ${item.code}`;
+                
+                // Registra na movimentação com o status correto para o painel de estoque
                 await sql`
                     INSERT INTO estoque_movimentacoes (produto_codigo, produto_descricao, tipo, quantidade, motivo, status_pagamento) 
                     VALUES (${item.code}, ${item.name}, 'SAIDA', ${item.quantity}, ${'Venda PDV (Ref #' + saleId + ')'}, ${statusVenda})
@@ -322,7 +331,6 @@ app.post('/api/sales', async (req, res) => {
         res.status(500).json({ error: err.message });
     }
 });
-
 // Rota para cancelar uma venda (Devolve produtos ao estoque e atualiza status para cancelado)
 app.put('/api/sales/:id/cancelar', async (req, res) => {
     const saleId = req.params.id;
