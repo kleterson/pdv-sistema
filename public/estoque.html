@@ -439,6 +439,32 @@
             }
         }
 
+        // Adicione esta função e garanta que ela é chamada
+async function carregarResumoVendas() {
+    try {
+        const response = await fetch('/api/sales/summary');
+        const data = await response.json();
+
+        const formatoMoeda = (valor) => Number(valor).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+
+        document.getElementById('vendas-hoje').innerText = formatoMoeda(data.hoje.total);
+        document.getElementById('qtd-hoje').innerText = `${data.hoje.qtd} venda(s) realizada(s)`;
+
+        document.getElementById('vendas-semana').innerText = formatoMoeda(data.semana.total);
+        document.getElementById('qtd-semana').innerText = `${data.semana.qtd} venda(s) realizada(s)`;
+
+        document.getElementById('vendas-mes').innerText = formatoMoeda(data.mes.total);
+        document.getElementById('qtd-mes').innerText = `${data.mes.qtd} venda(s) realizada(s)`;
+    } catch (err) {
+        console.error("Erro ao carregar resumo de vendas:", err);
+    }
+}
+
+// Chame a função junto com o carregamento normal da página ou dentro da função carregarDadosEstoque()
+window.addEventListener('DOMContentLoaded', () => {
+    carregarResumoVendas();
+});
+
         // Funções do Modal
         function abrirModal() {
             document.getElementById('modal-entrada').style.display = 'flex';
