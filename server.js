@@ -428,6 +428,53 @@ app.put('/api/sales/:id/cancelar', async (req, res) => {
     }
 });
 
+//Rota para sumir o html do link das paginas 
+
+app.get('/', (req, res) => {
+    res.sendFile(__dirname + '/public/index.html');
+});
+
+app.get('/caixa', (req, res) => {
+    res.sendFile(__dirname + '/public/caixa.html');
+});
+
+app.get('/caixa', (req, res) => {
+    res.sendFile(__dirname + '/public/cadastro.html');
+});
+
+app.get('/caixa', (req, res) => {
+    res.sendFile(__dirname + '/public/clientes.html');
+});
+
+app.get('/caixa', (req, res) => {
+    res.sendFile(__dirname + '/public/estoque.html');
+});
+
+app.get('/caixa', (req, res) => {
+    res.sendFile(__dirname + '/public/fiados.html');
+});
+
+app.get('/caixa', (req, res) => {
+    res.sendFile(__dirname + '/public/logo.html');
+});
+
+app.get('/caixa', (req, res) => {
+    res.sendFile(__dirname + '/public/operacao.html');
+});
+
+app.get('/caixa', (req, res) => {
+    res.sendFile(__dirname + '/public/padrao.html');
+});
+
+app.get('/caixa', (req, res) => {
+    res.sendFile(__dirname + '/public/relatorio.html');
+});
+
+app.get('/caixa', (req, res) => {
+    res.sendFile(__dirname + '/public/tabela.html');
+});
+
+
 // Rota para aprovar/concluir uma venda pendente
 app.put('/api/sales/:id/aprovar', async (req, res) => {
     const saleId = req.params.id;
