@@ -335,17 +335,16 @@ app.post('/api/sales', async (req, res) => {
 // Rota para buscar o resumo de vendas (Dia, Semana, Mês)
 app.get('/api/sales/summary', async (req, res) => {
     try {
-        // Consultas para somar o total de vendas concluídas ou pendentes (ajuste conforme sua regra de faturamento)
         const hojeRes = await sql`
             SELECT COALESCE(SUM(total), 0) as total, COUNT(*) as qtd 
             FROM sales 
-            WHERE status != 'cancelado' AND DATE(created_at) = CURRENT_DATE
+            WHERE status != 'cancelado' AND created_at::text LIKE ${'%' + new Date().toISOString().split('T')[0] + '%'}
         `;
 
         const semanaRes = await sql`
             SELECT COALESCE(SUM(total), 0) as total, COUNT(*) as qtd 
             FROM sales 
-            WHERE status != 'cancelado' AND created_at >= CURRENT_DATE - INTERVAL '7 days'
+            WHERE status != 'cancelado' AND created_at >= NOW() - INTERVAL '7 days'
         `;
 
         const mesRes = await sql`
@@ -356,9 +355,9 @@ app.get('/api/sales/summary', async (req, res) => {
         `;
 
         res.json({
-            hoje: hojeRes[0],
-            semana: semanaRes[0],
-            mes: mesRes[0]
+            hoje: { total: Number(hojeRes[0]?.total || 0), qtd: Number(hojeRes[0]?.qtd || 0) },
+            semana: { total: Number(semanaRes[0]?.total || 0), qtd: Number(semanaRes[0]?.qtd || 0) },
+            mes: { total: Number(mesRes[0]?.total || 0), qtd: Number(mesRes[0]?.qtd || 0) }
         });
     } catch (err) {
         console.error("Erro ao buscar resumo de vendas:", err.message);
