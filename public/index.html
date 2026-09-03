@@ -154,14 +154,14 @@
                 <label>Forma de Pagamento:</label>
                 <select id="paymentMethod" onchange="handlePaymentMethodChange()">
                     <option value="DINHEIRO">Dinheiro</option>
-                    <option value="PIX">Pix</option>
+                    <option value="PIX">Pix (Gerar QR Code)</option>
                     <option value="CARTAO_CREDITO">Cartão de Crédito</option>
                     <option value="CARTAO_DEBITO">Cartão de Débito</option>
                     <option value="Fiado (Anotar)">Fiado (Anotar)</option>
                 </select>
             </div>
 
-            <!-- Campo que abre só quando for Fiado (mostrando o débito atualizado na frente) -->
+            <!-- Campo que abre só quando for Fiado -->
             <div class="form-group" id="boxFiadoCliente" style="display: none; margin-top: 10px;">
                 <label style="color: #d9534f; font-weight: bold;">Selecionar Cliente para o Fiado:</label>
                 <select id="selectClienteFiado" style="width: 100%; padding: 8px; border: 1px solid #d9534f; border-radius: 4px; font-size: 14px;">
@@ -521,6 +521,9 @@
                 }
             }
 
+            // Se for Dinheiro, status é 'concluido' (PAGO). Se for PIX ou Cartão sem confirmação imediata, status é 'pendente'.
+            let statusVenda = (method === "DINHEIRO" || method.includes("Fiado")) ? "concluido" : "pendente";
+
             try {
                 let response = await fetch('/api/sales', {
                     method: 'POST',
@@ -530,7 +533,8 @@
                         total: currentGrandTotal,
                         paymentMethod: method,
                         clientId: clientIdToUse,
-                        clientName: selectedClient.name
+                        clientName: selectedClient.name,
+                        status: statusVenda
                     })
                 });
 
@@ -560,7 +564,8 @@
                         total: currentGrandTotal,
                         paymentMethod: 'PIX',
                         clientId: selectedClient.id,
-                        clientName: selectedClient.name
+                        clientName: selectedClient.name,
+                        status: 'concluido' // Aprovado via webhook do Pix vira concluído (Pago)
                     })
                 });
 

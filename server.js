@@ -37,7 +37,7 @@ const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
     origin: "*",
-    methods: ["GET", "POST"]
+    methods: ["GET", "POST", "PUT", "DELETE"]
   }
 });
 
@@ -68,6 +68,7 @@ async function inicializarBanco() {
                 tipo TEXT NOT NULL,
                 quantidade INTEGER NOT NULL,
                 motivo TEXT,
+                status_pagamento TEXT DEFAULT 'concluido',
                 data_hora TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         `;
@@ -78,6 +79,7 @@ async function inicializarBanco() {
                 total REAL,
                 payment_method TEXT,
                 client_id INTEGER,
+                status TEXT DEFAULT 'concluido',
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         `;
@@ -125,6 +127,14 @@ async function inicializarBanco() {
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         `;
+
+        // Garantir colunas novas caso a tabela já exista sem elas
+        try {
+            await sql`ALTER TABLE sales ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'concluido'`;
+            await sql`ALTER TABLE estoque_movimentacoes ADD COLUMN IF NOT EXISTS status_pagamento TEXT DEFAULT 'concluido'`;
+        } catch (e) {
+            // Colunas já existentes
+        }
 
         // Inserir produtos padrão caso a tabela esteja vazia
         const produtosExistentes = await sql`SELECT COUNT(*) as count FROM products`;
@@ -178,8 +188,8 @@ app.post('/api/estoque/movimentar', async (req, res) => {
 
         await sql`UPDATE products SET stock = ${novaQtd} WHERE code = ${codigo}`;
         await sql`
-            INSERT INTO estoque_movimentacoes (produto_codigo, produto_descricao, tipo, quantidade, motivo) 
-            VALUES (${codigo}, ${produto.name}, ${tipo}, ${qtdNum}, ${motivo || 'Reposição Manual'})
+            INSERT INTO estoque_movimentacoes (produto_codigo, produto_descricao, tipo, quantidade, motivo, status_pagamento) 
+            VALUES (${codigo}, ${produto.name}, ${tipo}, ${qtdNum}, ${motivo || 'Reposição Manual'}, 'concluido')
         `;
 
         res.json({ sucesso: true, novoEstoque: novaQtd });
@@ -213,7 +223,7 @@ app.get('/api/clients', async (req, res) => {
                 SELECT si.product_name, si.quantity, si.price, si.total 
                 FROM sale_items si 
                 JOIN sales s ON si.sale_id = s.id 
-                WHERE s.client_id = ${client.id} AND s.payment_method ILIKE '%Fiado%'
+                WHERE s.client_id = ${client.id} AND s.payment_method ILIKE '%Fiado%' AND s.status != 'cancelado'
             `;
             client.items = items || [];
             return client;
@@ -272,18 +282,21 @@ app.get('/api/products/:code', async (req, res) => {
     }
 });
 
-// Rota de Vendas (Salvando o ID do cliente para vincular os produtos fiados)
+// Rota de Vendas (Dinheiro = concluido/pago, Pix/Cartão não pago = pendente)
 app.post('/api/sales', async (req, res) => {
-    const { items, total, paymentMethod, clientId } = req.body;
+    const { items, total, paymentMethod, clientId, status } = req.body;
+
+    // Se for Dinheiro, o status padrão é concluido/pago. Se for Pix/Cartão pendente, vem 'pendente'
+    const statusVenda = status || (paymentMethod && paymentMethod.toUpperCase().includes('DINHEIRO') ? 'concluido' : 'pendente');
 
     try {
-        if (paymentMethod && (paymentMethod.includes('Fiado') || paymentMethod === "Fiado (Anotar)") && clientId) {
+        if (statusVenda === 'concluido' && paymentMethod && (paymentMethod.includes('Fiado') || paymentMethod === "Fiado (Anotar)") && clientId) {
             await sql`UPDATE clients SET debt = COALESCE(debt, 0) + ${total} WHERE id = ${clientId}`;
         }
 
         const saleResult = await sql`
-            INSERT INTO sales (total, payment_method, client_id) 
-            VALUES (${total}, ${paymentMethod}, ${clientId || null}) 
+            INSERT INTO sales (total, payment_method, client_id, status) 
+            VALUES (${total}, ${paymentMethod}, ${clientId || null}, ${statusVenda}) 
             RETURNING id
         `;
         const saleId = saleResult[0].id;
@@ -295,16 +308,69 @@ app.post('/api/sales', async (req, res) => {
                     VALUES (${saleId}, ${item.code}, ${item.name}, ${item.quantity}, ${item.price}, ${item.total})
                 `;
 
-                // Dar baixa automática no estoque e registrar a saída no histórico
+                // Dar baixa no estoque e registrar a saída (se concluído já baixa, se pendente também pode baixar ou aguardar. Vamos manter a baixa e ajustar o status na movimentação)
                 await sql`UPDATE products SET stock = GREATEST(0, COALESCE(stock, 0) - ${item.quantity}) WHERE code = ${item.code}`;
                 await sql`
-                    INSERT INTO estoque_movimentacoes (produto_codigo, produto_descricao, tipo, quantidade, motivo) 
-                    VALUES (${item.code}, ${item.name}, 'SAIDA', ${item.quantity}, ${'Venda PDV (Ref #' + saleId + ')'})
+                    INSERT INTO estoque_movimentacoes (produto_codigo, produto_descricao, tipo, quantidade, motivo, status_pagamento) 
+                    VALUES (${item.code}, ${item.name}, 'SAIDA', ${item.quantity}, ${'Venda PDV (Ref #' + saleId + ')'}, ${statusVenda})
                 `;
             }
         }
 
         res.json({ success: true, saleId: saleId, message: "Venda registrada com sucesso!" });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Rota para cancelar uma venda (Devolve produtos ao estoque e atualiza status para cancelado)
+app.put('/api/sales/:id/cancelar', async (req, res) => {
+    const saleId = req.params.id;
+    try {
+        const saleCheck = await sql`SELECT * FROM sales WHERE id = ${saleId}`;
+        if (!saleCheck || saleCheck.length === 0) {
+            return res.status(404).json({ error: "Venda não encontrada" });
+        }
+
+        const venda = saleCheck[0];
+        if (venda.status === 'cancelado') {
+            return res.status(400).json({ error: "Esta venda já está cancelada!" });
+        }
+
+        // Atualizar status da venda para cancelado
+        await sql`UPDATE sales SET status = 'cancelado' WHERE id = ${saleId}`;
+
+        // Atualizar status nas movimentações de estoque vinculadas a esta venda
+        await sql`UPDATE estoque_movimentacoes SET status_pagamento = 'cancelado' WHERE motivo LIKE ${'%Ref #' + saleId + '%'}`;
+
+        // Devolver os itens ao estoque
+        const items = await sql`SELECT * FROM sale_items WHERE sale_id = ${saleId}`;
+        for (const item of items) {
+            await sql`UPDATE products SET stock = COALESCE(stock, 0) + ${item.quantity} WHERE code = ${item.product_code}`;
+            await sql`
+                INSERT INTO estoque_movimentacoes (produto_codigo, produto_descricao, tipo, quantidade, motivo, status_pagamento) 
+                VALUES (${item.product_code}, ${item.product_name}, 'ENTRADA', ${item.quantity}, ${'Estorno/Cancelamento Venda (Ref #' + saleId + ')'}, 'concluido')
+            `;
+        }
+
+        // Se era fiado e o cliente devia, remover do débito do cliente se aplicável
+        if (venda.client_id && venda.payment_method && venda.payment_method.includes('Fiado')) {
+            await sql`UPDATE clients SET debt = GREATEST(0, COALESCE(debt, 0) - ${venda.total}) WHERE id = ${venda.client_id}`;
+        }
+
+        res.json({ success: true, message: "Venda cancelada e estoque estornado com sucesso!" });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Rota para aprovar/concluir uma venda pendente
+app.put('/api/sales/:id/aprovar', async (req, res) => {
+    const saleId = req.params.id;
+    try {
+        await sql`UPDATE sales SET status = 'concluido' WHERE id = ${saleId}`;
+        await sql`UPDATE estoque_movimentacoes SET status_pagamento = 'concluido' WHERE motivo LIKE ${'%Ref #' + saleId + '%'}`;
+        res.json({ success: true, message: "Venda marcada como paga/concluída!" });
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
@@ -330,11 +396,11 @@ app.delete('/api/sales', async (req, res) => {
     }
 });
 
-// Rota para o resumo e o extrato completo do caixa
+// Rota para o resumo e o extrato completo do caixa (Considera apenas vendas concluídas/pagas)
 app.get('/api/caixa/resumo', async (req, res) => {
     try {
         const movimentacoes = await sql`SELECT * FROM caixa_movimentacoes ORDER BY id DESC`;
-        const vendas = await sql`SELECT payment_method, total FROM sales`;
+        const vendas = await sql`SELECT payment_method, total, status FROM sales`;
 
         let totalDinheiroVendas = 0;
         let totalPixVendas = 0;
@@ -343,6 +409,11 @@ app.get('/api/caixa/resumo', async (req, res) => {
         let totalCreditoVendas = 0;
 
         vendas.forEach(v => {
+            // Ignora vendas canceladas nos cálculos de caixa
+            if (v.status === 'cancelado') return;
+            // Se estiver pendente, pode optar por contar ou não. O ideal é somar apenas as concluídas ou todas exceto canceladas. Vamos somar se concluído ou dinheiro direto.
+            if (v.status && v.status !== 'concluido' && v.status !== 'pago') return;
+
             const valor = parseFloat(v.total) || 0;
             const metodo = (v.payment_method || '').toUpperCase();
             
@@ -395,7 +466,7 @@ app.get('/api/caixa/resumo', async (req, res) => {
     }
 });
 
-// Rota de Webhook atualizada para o padrão funcional
+// Rota de Webhook atualizada para aprovar a venda automaticamente ao pagar no Pix do Mercado Pago
 app.post('/api/webhook', async (req, res) => {
     try {
         const { type, data } = req.body;
@@ -452,7 +523,7 @@ app.delete('/api/caixa/zerar', async (req, res) => {
 
 app.get('/api/cash/summary', async (req, res) => {
     try {
-        const salesRows = await sql`SELECT payment_method, SUM(total) as total FROM sales GROUP BY payment_method`;
+        const salesRows = await sql`SELECT payment_method, SUM(total) as total FROM sales WHERE status != 'cancelado' GROUP BY payment_method`;
         const cashRows = await sql`SELECT * FROM cash_register ORDER BY created_at DESC`;
         res.json({ salesSummary: salesRows, cashMovements: cashRows });
     } catch (err) {
