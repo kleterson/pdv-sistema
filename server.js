@@ -438,39 +438,39 @@ app.get('/caixa', (req, res) => {
     res.sendFile(__dirname + '/public/caixa.html');
 });
 
-app.get('/caixa', (req, res) => {
+app.get('/cadastro', (req, res) => {
     res.sendFile(__dirname + '/public/cadastro.html');
 });
 
-app.get('/caixa', (req, res) => {
+app.get('/clientes', (req, res) => {
     res.sendFile(__dirname + '/public/clientes.html');
 });
 
-app.get('/caixa', (req, res) => {
+app.get('/estoque', (req, res) => {
     res.sendFile(__dirname + '/public/estoque.html');
 });
 
-app.get('/caixa', (req, res) => {
+app.get('/fiados', (req, res) => {
     res.sendFile(__dirname + '/public/fiados.html');
 });
 
-app.get('/caixa', (req, res) => {
+app.get('/logo', (req, res) => {
     res.sendFile(__dirname + '/public/logo.html');
 });
 
-app.get('/caixa', (req, res) => {
+app.get('/operacao', (req, res) => {
     res.sendFile(__dirname + '/public/operacao.html');
 });
 
-app.get('/caixa', (req, res) => {
+app.get('/padrao', (req, res) => {
     res.sendFile(__dirname + '/public/padrao.html');
 });
 
-app.get('/caixa', (req, res) => {
+app.get('/relatorio', (req, res) => {
     res.sendFile(__dirname + '/public/relatorio.html');
 });
 
-app.get('/caixa', (req, res) => {
+app.get('/tabela', (req, res) => {
     res.sendFile(__dirname + '/public/tabela.html');
 });
 
