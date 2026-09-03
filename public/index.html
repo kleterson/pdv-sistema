@@ -91,7 +91,7 @@
 
     <div class="input-box">
         <label for="barcode" style="font-weight: bold;">Produto (Código):</label>
-        <input type="text" id="barcode" placeholder="Digite o código e aperte Enter..." autofocus>
+        <input type="text" id="barcode" placeholder="Digite o código e aperte Enter (ex: 20*789...)[cite: 1]" autofocus>
     </div>
 
     <div class="main-container">
@@ -337,14 +337,29 @@
 
         inputField.addEventListener("keypress", async function(e) {
             if (e.key === "Enter") {
-                let code = inputField.value.trim();
-                if (!code) return;
+                let valorDigitado = inputField.value.trim();
+                if (!valorDigitado) return;
+
+                let quantidade = 1;
+                let codigoProduto = valorDigitado;
+
+                // Suporte a quantidade com asterisco (Ex: 20*7890123456789)
+                if (valorDigitado.includes('*')) {
+                    let partes = valorDigitado.split('*');
+                    let qtdParsed = parseInt(partes[0]);
+                    if (!isNaN(qtdParsed) && qtdParsed > 0) {
+                        quantidade = qtdParsed;
+                        codigoProduto = partes[1].trim();
+                    }
+                }
+
+                if (!codigoProduto) return;
 
                 try {
-                    let response = await fetch(`/api/products/${code}`);
+                    let response = await fetch(`/api/products/${codigoProduto}`);
                     if (response.ok) {
                         let product = await response.json();
-                        addProductToCart(product);
+                        addProductToCart(product, quantidade);
                         inputField.value = "";
                     } else {
                         alert("Produto não encontrado no banco de dados!");
@@ -355,10 +370,10 @@
             }
         });
 
-        function addProductToCart(product) {
+        function addProductToCart(product, quantidade = 1) {
             let existing = cart.find(item => item.code === product.code);
             if (existing) {
-                existing.quantity += 1;
+                existing.quantity += quantidade;
                 existing.total = existing.quantity * existing.price;
             } else {
                 cart.push({
@@ -366,8 +381,8 @@
                     name: product.name,
                     unit: product.unit,
                     price: product.price,
-                    quantity: 1,
-                    total: product.price
+                    quantity: quantidade,
+                    total: product.price * quantidade
                 });
             }
             updateTable();
@@ -521,7 +536,6 @@
                 }
             }
 
-            // Se for Dinheiro, status é 'concluido' (PAGO). Se for PIX ou Cartão sem confirmação imediata, status é 'pendente'.
             let statusVenda = (method === "DINHEIRO" || method.includes("Fiado")) ? "concluido" : "pendente";
 
             try {
@@ -565,7 +579,7 @@
                         paymentMethod: 'PIX',
                         clientId: selectedClient.id,
                         clientName: selectedClient.name,
-                        status: 'concluido' // Aprovado via webhook do Pix vira concluído (Pago)
+                        status: 'concluido'
                     })
                 });
 
