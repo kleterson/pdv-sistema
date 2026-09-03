@@ -100,7 +100,7 @@
     <script>
         async function loadClients() {
             try {
-                let response = await fetch('http://localhost:3000/api/clients');
+                let response = await fetch('/api/clients');
                 if (response.ok) {
                     let clients = await response.json();
                     let tbody = document.getElementById('clients-table-body');
@@ -152,7 +152,7 @@
         async function deleteClient(id, name) {
             if (confirm(`Deseja realmente excluir o cadastro de "${name}"?`)) {
                 try {
-                    let res = await fetch(`http://localhost:3000/api/clients/${id}`, {
+                    let res = await fetch(`/api/clients/${id}`, {
                         method: 'DELETE'
                     });
                     if (res.ok) {
