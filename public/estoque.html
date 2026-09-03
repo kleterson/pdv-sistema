@@ -143,6 +143,14 @@
             font-weight: bold;
         }
 
+        .badge-pendente {
+            background-color: #fff3cd;
+            color: #856404;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-weight: bold;
+        }
+
         /* Modal de Entrada */
         #modal-entrada {
             display: none;
@@ -210,7 +218,7 @@
         <button onclick="window.location.href='index.html'">[VOLTAR AO PDV]</button>
         <button onclick="carregarDadosEstoque()">[ATUALIZAR DADOS]</button>
         <button onclick="habilitarEdicao()" style="background-color: #007bff; color: white;">[EDITAR ESTOQUE]</button>
-<button id="btn-salvar-lote" onclick="salvarEdicaoLote()" style="background-color: #28a745; color: white; display: none;">[SALVAR ALTERAÇÕES]</button>
+        <button id="btn-salvar-lote" onclick="salvarEdicaoLote()" style="background-color: #28a745; color: white; display: none;">[SALVAR ALTERAÇÕES]</button>
     </div>
 
     <div class="container">
@@ -288,36 +296,40 @@
             document.getElementById('relogio').innerText = agora.toLocaleTimeString();
         }, 1000);
 
+        let modoEditando = false;
+        let cacheProdutos = [];
+
         // Função para buscar dados do backend
         async function carregarDadosEstoque() {
+            if (modoEditando) return;
+
             try {
-                const response = await fetch('http://localhost:3000/api/estoque/painel');
+                const response = await fetch('/api/estoque/painel');
                 const data = await response.json();
+                cacheProdutos = data.produtos || [];
 
-                // Preencher Tabela de Saldo Atual
-                const tbodySaldo = document.querySelector('#tabela-saldo tbody');
-                tbodySaldo.innerHTML = '';
-                data.produtos.forEach(prod => {
-                    tbodySaldo.innerHTML += `
-                        <tr>
-                            <td>${prod.codigo}</td>
-                            <td>${prod.descricao}</td>
-                            <td><strong>${prod.estoque || 0}</strong></td>
-                        </tr>
-                    `;
-                });
+                renderizarTabelaSaldo();
 
-                // Preencher Tabela de Movimentações
                 const tbodyMov = document.querySelector('#tabela-movimentacoes tbody');
                 tbodyMov.innerHTML = '';
-                data.movimentacoes.forEach(mov => {
-                    const badge = mov.tipo === 'ENTRADA' 
-                        ? `<span class="badge-entrada">ENTRADA</span>` 
-                        : `<span class="badge-saida">SAÍDA</span>`;
+                (data.movimentacoes || []).forEach(mov => {
+                    let badge = '';
+                    
+                    if (mov.tipo === 'ENTRADA') {
+                        badge = `<span class="badge-entrada">ENTRADA</span>`;
+                    } else if (mov.tipo === 'SAIDA') {
+                        // Verifica se o pagamento foi concluído ou está pendente
+                        const statusPagamento = (mov.status_pagamento || mov.status || '').toLowerCase();
+                        if (statusPagamento === 'concluido' || statusPagamento === 'pago' || statusPagamento === 'approved') {
+                            badge = `<span class="badge-saida">SAÍDA</span>`;
+                        } else {
+                            badge = `<span class="badge-pendente">PENDENTE</span>`;
+                        }
+                    } else {
+                        badge = `<span class="badge-saida">SAÍDA</span>`;
+                    }
 
-                    // Formatar data limpa
                     const dataFormatada = new Date(mov.data_hora).toLocaleString('pt-BR');
-
                     tbodyMov.innerHTML += `
                         <tr>
                             <td>${dataFormatada}</td>
@@ -328,9 +340,84 @@
                         </tr>
                     `;
                 });
-
             } catch (error) {
                 console.error("Erro ao carregar dados do estoque:", error);
+            }
+        }
+
+        function renderizarTabelaSaldo() {
+            const tbodySaldo = document.querySelector('#tabela-saldo tbody');
+            tbodySaldo.innerHTML = '';
+            cacheProdutos.forEach((prod, index) => {
+                if (modoEditando) {
+                    const inputNome = document.getElementById(`edit-nome-${index}`);
+                    const inputQtd = document.getElementById(`edit-qtd-${index}`);
+                    
+                    const nomeValor = inputNome ? inputNome.value : (prod.descricao || '');
+                    const qtdValor = inputQtd ? inputQtd.value : (prod.estoque ?? 0);
+
+                    tbodySaldo.innerHTML += `
+                        <tr>
+                            <td>${prod.codigo}</td>
+                            <td><input type="text" id="edit-nome-${index}" value="${nomeValor}" style="width:100%; padding:4px;"></td>
+                            <td><input type="number" id="edit-qtd-${index}" value="${qtdValor}" style="width:80px; padding:4px;"></td>
+                        </tr>
+                    `;
+                } else {
+                    tbodySaldo.innerHTML += `
+                        <tr>
+                            <td>${prod.codigo}</td>
+                            <td>${prod.descricao}</td>
+                            <td><strong>${prod.estoque || 0}</strong></td>
+                        </tr>
+                    `;
+                }
+            });
+        }
+
+        function habilitarEdicao() {
+            const senha = prompt("Digite a senha de autorização:");
+            if (!senha) return;
+
+            if (senha !== "2332") {
+                alert("❌ Senha incorreta!");
+                return;
+            }
+
+            modoEditando = true;
+            renderizarTabelaSaldo();
+            document.querySelector("button[onclick='habilitarEdicao()']").style.display = 'none';
+            document.getElementById('btn-salvar-lote').style.display = 'inline-block';
+            alert("🔓 Modo de edição liberado. Altere os campos na tabela e clique em Salvar Alterações.");
+        }
+
+        async function salvarEdicaoLote() {
+            const produtosAtualizados = cacheProdutos.map((prod, index) => {
+                const novoNome = document.getElementById(`edit-nome-${index}`).value;
+                const novoEstoque = parseInt(document.getElementById(`edit-qtd-${index}`).value) || 0;
+                return { code: prod.codigo, name: novoNome, stock: novoEstoque };
+            });
+
+            try {
+                const response = await fetch('/api/estoque/atualizar-lote', {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ senha: '2332', produtos: produtosAtualizados })
+                });
+
+                const resultado = await response.json();
+                if (response.ok) {
+                    alert("✅ Alterações salvas com sucesso!");
+                    modoEditando = false;
+                    document.querySelector("button[onclick='habilitarEdicao()']").style.display = 'inline-block';
+                    document.getElementById('btn-salvar-lote').style.display = 'none';
+                    carregarDadosEstoque();
+                } else {
+                    alert("❌ " + (resultado.error || "Erro ao salvar"));
+                }
+            } catch (error) {
+                console.error("Erro:", error);
+                alert("Erro ao conectar com o servidor.");
             }
         }
 
@@ -355,7 +442,7 @@
             }
 
             try {
-                const response = await fetch('http://localhost:3000/api/estoque/movimentar', {
+                const response = await fetch('/api/estoque/movimentar', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ codigo, tipo: 'ENTRADA', quantidade, motivo })
@@ -366,7 +453,6 @@
                     alert('Entrada registrada com sucesso!');
                     fecharModal();
                     carregarDadosEstoque();
-                    // Limpar campos
                     document.getElementById('input-codigo').value = '';
                     document.getElementById('input-quantidade').value = '';
                     document.getElementById('input-motivo').value = '';
@@ -384,115 +470,6 @@
 
         // Atualização automática em tempo real a cada 3 segundos
         setInterval(carregarDadosEstoque, 3000);
-
-        let modoEditando = false;
-let cacheProdutos = [];
-async function carregarDadosEstoque() {
-    if (modoEditando) return;
-
-    try {
-        const response = await fetch('/api/estoque/painel');
-        const data = await response.json();
-        cacheProdutos = data.produtos || [];
-
-        renderizarTabelaSaldo();
-
-        const tbodyMov = document.querySelector('#tabela-movimentacoes tbody');
-        tbodyMov.innerHTML = '';
-        (data.movimentacoes || []).forEach(mov => {
-            const badge = mov.tipo === 'ENTRADA' 
-                ? `<span class="badge-entrada">ENTRADA</span>` 
-                : `<span class="badge-saida">SAÍDA</span>`;
-            const dataFormatada = new Date(mov.data_hora).toLocaleString('pt-BR');
-            tbodyMov.innerHTML += `
-                <tr>
-                    <td>${dataFormatada}</td>
-                    <td>${badge}</td>
-                    <td>${mov.produto_descricao}</td>
-                    <td>${mov.quantidade}</td>
-                    <td>${mov.motivo}</td>
-                </tr>
-            `;
-        });
-    } catch (error) {
-        console.error("Erro ao carregar dados do estoque:", error);
-    }
-}
-function renderizarTabelaSaldo() {
-    const tbodySaldo = document.querySelector('#tabela-saldo tbody');
-    tbodySaldo.innerHTML = '';
-    cacheProdutos.forEach((prod, index) => {
-        if (modoEditando) {
-            // Usa o valor atual do cache ou o que já está na tela para não sumir ao redigir
-            const inputNome = document.getElementById(`edit-nome-${index}`);
-            const inputQtd = document.getElementById(`edit-qtd-${index}`);
-            
-            const nomeValor = inputNome ? inputNome.value : (prod.descricao || '');
-            const qtdValor = inputQtd ? inputQtd.value : (prod.estoque ?? 0);
-
-            tbodySaldo.innerHTML += `
-                <tr>
-                    <td>${prod.codigo}</td>
-                    <td><input type="text" id="edit-nome-${index}" value="${nomeValor}" style="width:100%; padding:4px;"></td>
-                    <td><input type="number" id="edit-qtd-${index}" value="${qtdValor}" style="width:80px; padding:4px;"></td>
-                </tr>
-            `;
-        } else {
-            tbodySaldo.innerHTML += `
-                <tr>
-                    <td>${prod.codigo}</td>
-                    <td>${prod.descricao}</td>
-                    <td><strong>${prod.estoque || 0}</strong></td>
-                </tr>
-            `;
-        }
-    });
-}
-function habilitarEdicao() {
-    const senha = prompt("Digite a senha de autorização:");
-    if (!senha) return;
-
-    if (senha !== "2332") {
-        alert("❌ Senha incorreta!");
-        return;
-    }
-
-    modoEditando = true;
-    renderizarTabelaSaldo();
-    document.querySelector("button[onclick='habilitarEdicao()']").style.display = 'none';
-    document.getElementById('btn-salvar-lote').style.display = 'inline-block';
-    alert("🔓 Modo de edição liberado. Altere os campos na tabela e clique em Salvar Alterações.");
-}
-
-async function salvarEdicaoLote() {
-    const produtosAtualizados = cacheProdutos.map((prod, index) => {
-        const novoNome = document.getElementById(`edit-nome-${index}`).value;
-        const novoEstoque = parseInt(document.getElementById(`edit-qtd-${index}`).value) || 0;
-        return { code: prod.codigo, name: novoNome, stock: novoEstoque };
-    });
-
-    try {
-        const response = await fetch('http://localhost:3000/api/estoque/atualizar-lote', {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ senha: '2332', produtos: produtosAtualizados })
-        });
-
-        const resultado = await response.json();
-        if (response.ok) {
-            alert("✅ Alterações salvas com sucesso!");
-            modoEditando = false;
-            document.querySelector("button[onclick='habilitarEdicao()']").style.display = 'inline-block';
-            document.getElementById('btn-salvar-lote').style.display = 'none';
-            carregarDadosEstoque();
-        } else {
-            alert("❌ " + (resultado.error || "Erro ao salvar"));
-        }
-    } catch (error) {
-        console.error("Erro:", error);
-        alert("Erro ao conectar com o servidor.");
-    }
-}
     </script>
 </body>
 </html>
