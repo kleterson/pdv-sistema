@@ -331,6 +331,41 @@ app.post('/api/sales', async (req, res) => {
         res.status(500).json({ error: err.message });
     }
 });
+
+// Rota para buscar o resumo de vendas (Dia, Semana, Mês)
+app.get('/api/sales/summary', async (req, res) => {
+    try {
+        // Consultas para somar o total de vendas concluídas ou pendentes (ajuste conforme sua regra de faturamento)
+        const hojeRes = await sql`
+            SELECT COALESCE(SUM(total), 0) as total, COUNT(*) as qtd 
+            FROM sales 
+            WHERE status != 'cancelado' AND DATE(created_at) = CURRENT_DATE
+        `;
+
+        const semanaRes = await sql`
+            SELECT COALESCE(SUM(total), 0) as total, COUNT(*) as qtd 
+            FROM sales 
+            WHERE status != 'cancelado' AND created_at >= CURRENT_DATE - INTERVAL '7 days'
+        `;
+
+        const mesRes = await sql`
+            SELECT COALESCE(SUM(total), 0) as total, COUNT(*) as qtd 
+            FROM sales 
+            WHERE status != 'cancelado' AND EXTRACT(MONTH FROM created_at) = EXTRACT(MONTH FROM CURRENT_DATE)
+            AND EXTRACT(YEAR FROM created_at) = EXTRACT(YEAR FROM CURRENT_DATE)
+        `;
+
+        res.json({
+            hoje: hojeRes[0],
+            semana: semanaRes[0],
+            mes: mesRes[0]
+        });
+    } catch (err) {
+        console.error("Erro ao buscar resumo de vendas:", err.message);
+        res.status(500).json({ error: err.message });
+    }
+});
+
 // Rota para cancelar uma venda (Devolve produtos ao estoque e atualiza status para cancelado)
 app.put('/api/sales/:id/cancelar', async (req, res) => {
     const saleId = req.params.id;

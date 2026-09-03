@@ -213,6 +213,24 @@
         <span>TEMPO REAL: <strong id="relogio">--:--:--</strong></span>
     </div>
 
+<!-- Resumo de Vendas por Período -->
+<div style="display: flex; gap: 20px; margin-bottom: 20px; flex-wrap: wrap;">
+    <div style="flex: 1; background: #fff; padding: 15px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); border-left: 5px solid #28a745;">
+        <h4 style="margin: 0; color: #555; font-size: 14px;">Vendas Hoje</h4>
+        <p id="vendas-hoje" style="margin: 5px 0 0 0; font-size: 22px; font-weight: bold; color: #28a745;">R$ 0,00</p>
+        <small id="qtd-hoje" style="color: #888;">0 vendas realizadas</small>
+    </div>
+    <div style="flex: 1; background: #fff; padding: 15px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); border-left: 5px solid #007bff;">
+        <h4 style="margin: 0; color: #555; font-size: 14px;">Vendas na Semana (7 dias)</h4>
+        <p id="vendas-semana" style="margin: 5px 0 0 0; font-size: 22px; font-weight: bold; color: #007bff;">R$ 0,00</p>
+        <small id="qtd-semana" style="color: #888;">0 vendas realizadas</small>
+    </div>
+    <div style="flex: 1; background: #fff; padding: 15px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); border-left: 5px solid #ffc107;">
+        <h4 style="margin: 0; color: #555; font-size: 14px;">Vendas no Mês</h4>
+        <p id="vendas-mes" style="margin: 5px 0 0 0; font-size: 22px; font-weight: bold; color: #d39e00;">R$ 0,00</p>
+        <small id="qtd-mes" style="color: #888;">0 vendas realizadas</small>
+    </div>
+
     <!-- Menu de navegação rápido para voltar ao PDV -->
     <div class="menu-botoes">
         <button onclick="window.location.href='index.html'">[VOLTAR AO PDV]</button>
