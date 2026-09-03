@@ -335,29 +335,51 @@ app.post('/api/sales', async (req, res) => {
 // Rota para buscar o resumo de vendas (Dia, Semana, Mês)
 app.get('/api/sales/summary', async (req, res) => {
     try {
-        const hojeRes = await sql`
-            SELECT COALESCE(SUM(total), 0) as total, COUNT(*) as qtd 
-            FROM sales 
-            WHERE status != 'cancelado' AND created_at::text LIKE ${'%' + new Date().toISOString().split('T')[0] + '%'}
+        // Pega todas as vendas registradas (exceto canceladas)
+        const vendas = await sql`
+            SELECT total, created_at FROM sales WHERE status != 'cancelado'
         `;
 
-        const semanaRes = await sql`
-            SELECT COALESCE(SUM(total), 0) as total, COUNT(*) as qtd 
-            FROM sales 
-            WHERE status != 'cancelado' AND created_at >= NOW() - INTERVAL '7 days'
-        `;
+        let totalHoje = 0;
+        let qtdHoje = 0;
+        let totalSemana = 0;
+        let qtdSemana = 0;
+        let totalMes = 0;
+        let qtdMes = 0;
 
-        const mesRes = await sql`
-            SELECT COALESCE(SUM(total), 0) as total, COUNT(*) as qtd 
-            FROM sales 
-            WHERE status != 'cancelado' AND EXTRACT(MONTH FROM created_at) = EXTRACT(MONTH FROM CURRENT_DATE)
-            AND EXTRACT(YEAR FROM created_at) = EXTRACT(YEAR FROM CURRENT_DATE)
-        `;
+        const agora = new Date();
+        const hojeStr = agora.toISOString().split('T')[0];
+
+        vendas.forEach(v => {
+            const valor = Number(v.total) || 0;
+            const dataVendaStr = new Date(v.created_at).toISOString().split('T')[0];
+
+            // Hoje
+            if (dataVendaStr === hojeStr) {
+                totalHoje += valor;
+                qtdHoje++;
+            }
+
+            // Últimos 7 dias
+            const diffTime = Math.abs(agora - new Date(v.created_at));
+            const diffDays = diffTime / (1000 * 60 * 60 * 24);
+            if (diffDays <= 7) {
+                totalSemana += valor;
+                qtdSemana++;
+            }
+
+            // Mês atual
+            const vendaDate = new Date(v.created_at);
+            if (vendaDate.getMonth() === agora.getMonth() && vendaDate.getFullYear() === agora.getFullYear()) {
+                totalMes += valor;
+                qtdMes++;
+            }
+        });
 
         res.json({
-            hoje: { total: Number(hojeRes[0]?.total || 0), qtd: Number(hojeRes[0]?.qtd || 0) },
-            semana: { total: Number(semanaRes[0]?.total || 0), qtd: Number(semanaRes[0]?.qtd || 0) },
-            mes: { total: Number(mesRes[0]?.total || 0), qtd: Number(mesRes[0]?.qtd || 0) }
+            hoje: { total: totalHoje, qtd: qtdHoje },
+            semana: { total: totalSemana, qtd: qtdSemana },
+            mes: { total: totalMes, qtd: qtdMes }
         });
     } catch (err) {
         console.error("Erro ao buscar resumo de vendas:", err.message);
