@@ -134,7 +134,7 @@
             if (codigo === "2332") {
                 if (confirm("Tem certeza que deseja apagar todo o histórico de vendas?")) {
                     try {
-                        const response = await fetch('http://localhost:3000/api/sales', {
+                        const response = await fetch('/api/sales', {
                             method: 'DELETE'
                         });
                         
