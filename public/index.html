@@ -60,6 +60,9 @@
         #pixContainer img { width: 180px; height: 180px; margin: 10px auto; border: 1px solid #ddd; padding: 5px; }
         #pixCopyPaste { font-size: 11px; background: #f8f9fa; padding: 8px; border: 1px dashed #ccc; word-break: break-all; max-height: 60px; overflow-y: auto; }
 
+        #cardContainer { text-align: center; display: none; margin-top: 15px; padding: 15px; background: #fff3cd; border: 1px solid #ffeeba; border-radius: 5px; }
+        #cardStatusText { font-size: 16px; font-weight: bold; color: #856404; }
+
         /* Estilo oculto exclusivo para o formato do Cupom Térmico na hora da impressão */
         #receipt-print-area { display: none; }
 
@@ -183,8 +186,14 @@
             <div id="pixContainer">
                 <p style="font-weight: bold; color: #0056b3; font-size: 13px;">Escaneie o QR Code abaixo com o app do banco:</p>
                 <img id="pixQrImg" src="" alt="QR Code Pix">
+                <div id="status-pagamento-container" style="text-align: center; margin-top: 10px; font-weight: bold; font-size: 16px;"></div>
                 <p style="font-size: 11px; color: #666; margin-top: 5px;">Pix Copia e Cola:</p>
                 <div id="pixCopyPaste"></div>
+            </div>
+
+            <!-- Status do Cartão / Maquininha -->
+            <div id="cardContainer">
+                <p id="cardStatusText">Aguardando inserção do cartão...</p>
             </div>
 
             <div class="modal-buttons">
@@ -234,23 +243,25 @@
         const cartTableBody = document.getElementById("cart-items");
         const grandTotalElement = document.getElementById("grand-total");
 
-        const socket = io();
+        const socket = io(window.location.origin);
 
         socket.on('pagamento_confirmado', (data) => {
-            let modals = document.querySelectorAll('.modal, [id*="modal"], [id*="Modal"]');
-            
-            alert(`Pagamento de R$ ${Number(data.valor || 0).toFixed(2)} confirmado com sucesso!`);
-            
-            modals.forEach(m => {
-                m.style.display = 'none';
-            });
+            let paymentModal = document.getElementById('paymentModal');
+            let paymentMethod = document.getElementById('paymentMethod').value;
 
-            if (typeof completeSaleViaWebhook === 'function') {
-                completeSaleViaWebhook();
-            } else {
-                location.reload();
+            if (paymentModal && paymentModal.style.display === 'flex' && (paymentMethod === 'PIX' || paymentMethod === 'PIX (Gerar QR Code)')) {
+                const statusDiv = document.getElementById('status-pagamento-container');
+                if (statusDiv) {
+                    statusDiv.innerHTML = `✅ Pagamento Pix de R$ ${Number(data.valor || 0).toFixed(2)} confirmado!`;
+                    statusDiv.style.color = "#28a745";
+                }
+
+                setTimeout(() => {
+                    if (statusDiv) statusDiv.innerHTML = "";
+                    completeSaleViaWebhook();
+                }, 1500);
             }
-        });  
+        });
 
         document.addEventListener("keydown", function(e) {
             if (e.key === "F2") {
@@ -275,10 +286,12 @@
             let cashFields = document.getElementById("divCashFields");
             let pixContainer = document.getElementById("pixContainer");
             let boxFiado = document.getElementById("boxFiadoCliente");
+            let cardContainer = document.getElementById("cardContainer");
 
             cashFields.style.display = "none";
             pixContainer.style.display = "none";
             boxFiado.style.display = "none";
+            cardContainer.style.display = "none";
 
             if (method === "PIX") {
                 pixContainer.style.display = "block";
@@ -307,6 +320,34 @@
             } else if (method === "Fiado (Anotar)") {
                 boxFiado.style.display = "block";
                 await carregarClientesParaFiado();
+            } else if (method === "CARTAO_CREDITO" || method === "CARTAO_DEBITO") {
+                cardContainer.style.display = "block";
+                let statusText = document.getElementById("cardStatusText");
+                statusText.innerText = "Enviando cobrança para a Point Pro 2...";
+                statusText.style.color = "#856404";
+
+                try {
+                    let response = await fetch('/api/point/pay', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            amount: currentGrandTotal,
+                            paymentType: method === "CARTAO_CREDITO" ? "CREDITO" : "DEBITO"
+                        })
+                    });
+                    let data = await response.json();
+
+                    if (response.ok && data.success) {
+                        statusText.innerText = "Insira ou aproxime o cartão na maquininha...";
+                    } else {
+                        statusText.innerText = "Erro ao acionar a maquininha: " + (data.error || "Falha desconhecida");
+                        statusText.style.color = "#dc3545";
+                    }
+                } catch (err) {
+                    console.error(err);
+                    statusText.innerText = "Erro de comunicação com o servidor da maquininha.";
+                    statusText.style.color = "#dc3545";
+                }
             }
         }
 
@@ -326,7 +367,6 @@
                     clients.forEach(c => {
                         let debitoAtual = c.debt || 0;
                         let novoDebitoTotal = debitoAtual + currentGrandTotal;
-                        
                         select.innerHTML += `<option value="${c.id}">${c.name} — Débito Atual: R$ ${debitoAtual.toFixed(2)} | Ficando com: R$ ${novoDebitoTotal.toFixed(2)}</option>`;
                     });
                 }
@@ -343,7 +383,6 @@
                 let quantidade = 1;
                 let codigoProduto = valorDigitado;
 
-                // Suporte a quantidade com asterisco (Ex: 20*7890123456789)
                 if (valorDigitado.includes('*')) {
                     let partes = valorDigitado.split('*');
                     let qtdParsed = parseInt(partes[0]);
@@ -536,7 +575,7 @@
                 }
             }
 
-            let statusVenda = (method === "DINHEIRO" || method.includes("Fiado")) ? "concluido" : "pendente";
+            let statusVenda = (method === "DINHEIRO" || method.includes("CARTAO") || method.includes("Fiado")) ? "concluido" : "pendente";
 
             try {
                 let response = await fetch('/api/sales', {
