@@ -4,6 +4,7 @@ const { Server } = require('socket.io');
 const postgres = require('postgres');
 const cors = require('cors');
 const path = require('path');
+const axios = require('axios');
 const { MercadoPagoConfig, Payment } = require('mercadopago');
 
 // CONFIGURAÇÃO DO SUPABASE (POSTGRESQL) - Forçando IPv4 para evitar erro no Render
@@ -335,7 +336,6 @@ app.post('/api/sales', async (req, res) => {
 // Rota para buscar o resumo de vendas (Dia, Semana, Mês)
 app.get('/api/sales/summary', async (req, res) => {
     try {
-        // Pega todas as vendas registradas (exceto canceladas)
         const vendas = await sql`
             SELECT total, created_at FROM sales WHERE status != 'cancelado'
         `;
@@ -354,13 +354,11 @@ app.get('/api/sales/summary', async (req, res) => {
             const valor = Number(v.total) || 0;
             const dataVendaStr = new Date(v.created_at).toISOString().split('T')[0];
 
-            // Hoje
             if (dataVendaStr === hojeStr) {
                 totalHoje += valor;
                 qtdHoje++;
             }
 
-            // Últimos 7 dias
             const diffTime = Math.abs(agora - new Date(v.created_at));
             const diffDays = diffTime / (1000 * 60 * 60 * 24);
             if (diffDays <= 7) {
@@ -368,7 +366,6 @@ app.get('/api/sales/summary', async (req, res) => {
                 qtdSemana++;
             }
 
-            // Mês atual
             const vendaDate = new Date(v.created_at);
             if (vendaDate.getMonth() === agora.getMonth() && vendaDate.getFullYear() === agora.getFullYear()) {
                 totalMes += valor;
@@ -387,7 +384,7 @@ app.get('/api/sales/summary', async (req, res) => {
     }
 });
 
-// Rota para cancelar uma venda (Devolve produtos ao estoque e atualiza status para cancelado)
+// Rota para cancelar uma venda
 app.put('/api/sales/:id/cancelar', async (req, res) => {
     const saleId = req.params.id;
     try {
@@ -401,13 +398,9 @@ app.put('/api/sales/:id/cancelar', async (req, res) => {
             return res.status(400).json({ error: "Esta venda já está cancelada!" });
         }
 
-        // Atualizar status da venda para cancelado
         await sql`UPDATE sales SET status = 'cancelado' WHERE id = ${saleId}`;
-
-        // Atualizar status nas movimentações de estoque vinculadas a esta venda
         await sql`UPDATE estoque_movimentacoes SET status_pagamento = 'cancelado' WHERE motivo LIKE ${'%Ref #' + saleId + '%'}`;
 
-        // Devolver os itens ao estoque
         const items = await sql`SELECT * FROM sale_items WHERE sale_id = ${saleId}`;
         for (const item of items) {
             await sql`UPDATE products SET stock = COALESCE(stock, 0) + ${item.quantity} WHERE code = ${item.product_code}`;
@@ -417,7 +410,6 @@ app.put('/api/sales/:id/cancelar', async (req, res) => {
             `;
         }
 
-        // Se era fiado e o cliente devia, remover do débito do cliente se aplicável
         if (venda.client_id && venda.payment_method && venda.payment_method.includes('Fiado')) {
             await sql`UPDATE clients SET debt = GREATEST(0, COALESCE(debt, 0) - ${venda.total}) WHERE id = ${venda.client_id}`;
         }
@@ -428,52 +420,18 @@ app.put('/api/sales/:id/cancelar', async (req, res) => {
     }
 });
 
-//Rota para sumir o html do link das paginas 
-
-app.get('/', (req, res) => {
-    res.sendFile(__dirname + '/public/index.html');
-});
-
-app.get('/caixa', (req, res) => {
-    res.sendFile(__dirname + '/public/caixa.html');
-});
-
-app.get('/cadastro', (req, res) => {
-    res.sendFile(__dirname + '/public/cadastro.html');
-});
-
-app.get('/clientes', (req, res) => {
-    res.sendFile(__dirname + '/public/clientes.html');
-});
-
-app.get('/estoque', (req, res) => {
-    res.sendFile(__dirname + '/public/estoque.html');
-});
-
-app.get('/fiados', (req, res) => {
-    res.sendFile(__dirname + '/public/fiados.html');
-});
-
-app.get('/logo', (req, res) => {
-    res.sendFile(__dirname + '/public/logo.html');
-});
-
-app.get('/operacao', (req, res) => {
-    res.sendFile(__dirname + '/public/operacao.html');
-});
-
-app.get('/padrao', (req, res) => {
-    res.sendFile(__dirname + '/public/padrao.html');
-});
-
-app.get('/relatorio', (req, res) => {
-    res.sendFile(__dirname + '/public/relatorio.html');
-});
-
-app.get('/tabela', (req, res) => {
-    res.sendFile(__dirname + '/public/tabela.html');
-});
-
+// Rotas de páginas HTML
+app.get('/', (req, res) => { res.sendFile(__dirname + '/public/index.html'); });
+app.get('/caixa', (req, res) => { res.sendFile(__dirname + '/public/caixa.html'); });
+app.get('/cadastro', (req, res) => { res.sendFile(__dirname + '/public/cadastro.html'); });
+app.get('/clientes', (req, res) => { res.sendFile(__dirname + '/public/clientes.html'); });
+app.get('/estoque', (req, res) => { res.sendFile(__dirname + '/public/estoque.html'); });
+app.get('/fiados', (req, res) => { res.sendFile(__dirname + '/public/fiados.html'); });
+app.get('/logo', (req, res) => { res.sendFile(__dirname + '/public/logo.html'); });
+app.get('/operacao', (req, res) => { res.sendFile(__dirname + '/public/operacao.html'); });
+app.get('/padrao', (req, res) => { res.sendFile(__dirname + '/public/padrao.html'); });
+app.get('/relatorio', (req, res) => { res.sendFile(__dirname + '/public/relatorio.html'); });
+app.get('/tabela', (req, res) => { res.sendFile(__dirname + '/public/tabela.html'); });
 
 // Rota para aprovar/concluir uma venda pendente
 app.put('/api/sales/:id/aprovar', async (req, res) => {
@@ -507,7 +465,7 @@ app.delete('/api/sales', async (req, res) => {
     }
 });
 
-// Rota para o resumo e o extrato completo do caixa (Considera apenas vendas concluídas/pagas)
+// Rota para o resumo e o extrato completo do caixa
 app.get('/api/caixa/resumo', async (req, res) => {
     try {
         const movimentacoes = await sql`SELECT * FROM caixa_movimentacoes ORDER BY id DESC`;
@@ -520,9 +478,7 @@ app.get('/api/caixa/resumo', async (req, res) => {
         let totalCreditoVendas = 0;
 
         vendas.forEach(v => {
-            // Ignora vendas canceladas nos cálculos de caixa
             if (v.status === 'cancelado') return;
-            // Se estiver pendente, pode optar por contar ou não. O ideal é somar apenas as concluídas ou todas exceto canceladas. Vamos somar se concluído ou dinheiro direto.
             if (v.status && v.status !== 'concluido' && v.status !== 'pago') return;
 
             const valor = parseFloat(v.total) || 0;
@@ -581,7 +537,16 @@ app.get('/api/caixa/resumo', async (req, res) => {
 app.post('/api/webhook', async (req, res) => {
     try {
         const { type, data } = req.body;
-        const paymentId = data ? data.id : req.body.id;
+        
+        let paymentId = null;
+        if (data && data.id) {
+            paymentId = data.id;
+        } else if (req.body.id) {
+            paymentId = req.body.id;
+        } else if (type === 'payment' && req.body.resource) {
+            const parts = req.body.resource.split('/');
+            paymentId = parts[parts.length - 1];
+        }
 
         if (paymentId) {
             const paymentData = await payment.get({ id: paymentId });
@@ -593,7 +558,7 @@ app.post('/api/webhook', async (req, res) => {
             }
         }
     } catch (err) {
-        console.error('Erro ao processar webhook:', err);
+        console.error('Erro ao processar webhook:', err.message);
     }
     res.sendStatus(200);
 });
@@ -642,7 +607,7 @@ app.get('/api/cash/summary', async (req, res) => {
     }
 });
 
-// Rota para registrar movimentações manuais do caixa (Abertura, Sangria, Suprimento)
+// Rota para registrar movimentações manuais do caixa
 app.post('/api/caixa/movimentar', async (req, res) => {
     const { tipo, valor, motivo } = req.body;
     try {
@@ -692,6 +657,60 @@ app.post('/api/pix/create', async (req, res) => {
     } catch (error) {
         console.error('Erro ao gerar Pix no Mercado Pago:', error);
         res.status(500).json({ error: error.message || 'Erro ao gerar Pix.' });
+    }
+});
+
+// Rota integrada para disparar a cobrança na Point Pro 2
+app.post('/api/point/pay', async (req, res) => {
+    try {
+        const { amount, paymentType } = req.body;
+
+        // ID da maquininha (Basta substituir este valor quando comprar a nova)
+        const DEVICE_ID = process.env.POINT_DEVICE_ID || "COLOQUE_O_ID_DA_NOVA_AQUI";
+
+        if (DEVICE_ID === "COLOQUE_O_ID_DA_NOVA_AQUI") {
+            return res.status(400).json({ 
+                success: false, 
+                error: "Nenhuma maquininha configurada. Insira o ID do dispositivo no código ou variável de ambiente." 
+            });
+        }
+
+        const idempotencyKey = 'idemp-' + Date.now() + '-' + Math.random().toString(36);
+
+        const orderData = {
+            type: "point",
+            external_reference: `PEDIDO-${Date.now()}`,
+            transaction: {
+                payments: [
+                    {
+                        amount: Number(amount).toFixed(2),
+                        payment_type: paymentType === 'CREDITO' ? 'credit_card' : 'debit_card'
+                    }
+                ]
+            },
+            config: {
+                point: {
+                    terminal_id: DEVICE_ID 
+                }
+            }
+        };
+
+        const response = await axios.post('https://api.mercadopago.com/v1/orders', orderData, {
+            headers: {
+                'Authorization': `Bearer ${process.env.ACCESS_TOKEN || "APP_USER-2095945046166753-082622-da2e84ef00479fd4c8e21ca7382f08b0-71867761"}`,
+                'X-Idempotency-Key': idempotencyKey,
+                'Content-Type': 'application/json'
+            }
+        });
+
+        res.json({ success: true, data: response.data });
+
+    } catch (error) {
+        console.error("Erro ao enviar para a Point Pro 2:", error.response?.data || error.message);
+        res.status(500).json({ 
+            success: false, 
+            error: error.response?.data?.message || "Erro ao comunicar com a maquininha." 
+        });
     }
 });
 
